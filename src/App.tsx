@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { PointerLockControls as PLC } from 'three-stdlib';
-import { OrbitControls } from '@react-three/drei';
 import { Lights } from './scene/Lights';
 import { Office } from './scene/Office';
 import { DeskCluster } from './scene/DeskCluster';
 import { Player } from './scene/Player';
+import { PreviewControls } from './scene/PreviewControls';
 import { Effects } from './scene/Effects';
 import { Crosshair } from './hud/Crosshair';
 import { ControlsHint } from './hud/ControlsHint';
@@ -98,20 +98,7 @@ export default function App() {
         <Lights />
         <Office />
         <DeskCluster />
-        {preview ? (
-          // Inspect mode: drag to look around, scroll to zoom (no pointer lock).
-          <OrbitControls
-            makeDefault
-            target={[0, 1, -2]}
-            enablePan
-            enableZoom
-            minDistance={2}
-            maxDistance={26}
-            maxPolarAngle={Math.PI / 2 - 0.05}
-          />
-        ) : (
-          <Player controlsRef={controlsRef} />
-        )}
+        {preview ? <PreviewControls /> : <Player controlsRef={controlsRef} />}
         <Effects />
       </Canvas>
 
