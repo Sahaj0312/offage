@@ -101,7 +101,7 @@ export default function App() {
         {whiteboardOpen && <Whiteboard onClose={relock} />}
 
         {showStart && (
-          <div className="start-overlay" onClick={relock}>
+          <div id="enter-office" className="start-overlay" onClick={relock}>
             <h1>Offage</h1>
             <p>
               A walkable 3D office where every desk is an AI agent. Watch them think, work,

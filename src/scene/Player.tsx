@@ -81,5 +81,8 @@ export function Player({ controlsRef }: { controlsRef: React.MutableRefObject<PL
     useStore.getState().setFocused(focusId);
   });
 
-  return <PointerLockControls ref={controlsRef as never} />;
+  // selector scopes drei's click-to-lock to the start overlay only; without it
+  // drei binds the handler to the whole document, so clicking the task input
+  // would re-lock the pointer and close the panel. We lock/unlock manually elsewhere.
+  return <PointerLockControls ref={controlsRef as never} selector="#enter-office" />;
 }
