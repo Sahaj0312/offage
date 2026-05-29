@@ -40,6 +40,9 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         options: {
           cwd: this.cfg.workdir,
           allowedTools,
+          // disallowedTools is a hard block even under bypassPermissions, so it's
+          // what actually enforces read-only / no-shell modes without prompting.
+          ...(this.cfg.disallowedTools?.length ? { disallowedTools: this.cfg.disallowedTools } : {}),
           permissionMode: 'bypassPermissions',
           maxTurns: this.cfg.maxTurns,
           abortController: controller,

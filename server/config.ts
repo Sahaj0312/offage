@@ -22,6 +22,8 @@ export interface OffageConfig {
   model?: string;
   /** default tool allowlist — read-only tools by default for safety */
   allowedTools: string[];
+  /** tools to hard-block (enforced even under bypassPermissions) */
+  disallowedTools?: string[];
   /** how many agents may run concurrently */
   concurrency: number;
   maxTurns: number;
@@ -89,6 +91,7 @@ export function loadConfig(explicitPath?: string): { config: OffageConfig; sourc
     workdir: resolve(expandHome(fileCfg.workdir ?? DEFAULTS.workdir)),
     model: fileCfg.model ?? DEFAULTS.model,
     allowedTools: fileCfg.allowedTools ?? DEFAULTS.allowedTools,
+    disallowedTools: fileCfg.disallowedTools ?? DEFAULTS.disallowedTools,
     concurrency: fileCfg.concurrency ?? DEFAULTS.concurrency,
     maxTurns: fileCfg.maxTurns ?? DEFAULTS.maxTurns,
     agents,

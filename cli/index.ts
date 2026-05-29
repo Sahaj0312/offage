@@ -1,5 +1,6 @@
 import * as readline from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DEFAULT_WS_PORT } from '../shared/agent';
 import type { AgentConfig, OffageConfig } from '../server/config';
@@ -117,6 +118,17 @@ async function main() {
     workdir: arg('--workdir') ? resolve(process.cwd(), arg('--workdir') as string) : config.workdir,
   };
 
+  // Agents spawn with cwd = workdir; a missing dir makes the SDK fail to launch.
+  // Create it so `--workdir ~/new-project` just works.
+  if (!MOCK) {
+    try {
+      mkdirSync(cfg.workdir, { recursive: true });
+    } catch (err) {
+      console.error(c.red(`\n  Can't use workdir ${cfg.workdir}: ${(err as Error).message}\n`));
+      process.exit(1);
+    }
+  }
+
   if (!MOCK && !(await ensureAuth(cfg))) process.exit(1);
 
   const goal = await getGoal();
@@ -143,14 +155,14 @@ async function main() {
 
   // Choose the agents' tool capabilities. Read-only by default is safe but can't
   // build anything; --write lets them create/edit files, --bash adds shell.
+  // Because bypassPermissions ignores the allowlist, disallowedTools is what
+  // actually enforces these limits.
   const READ = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'];
-  const readOnly = has('--read-only');
-  const canWrite = has('--write') || has('--build');
-  const allowedTools = readOnly
-    ? READ
-    : canWrite
-      ? [...READ, 'Write', 'Edit', ...(has('--bash') ? ['Bash'] : [])]
-      : READ;
+  const WRITE = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+  const canWrite = (has('--write') || has('--build')) && !has('--read-only');
+  const canBash = canWrite && has('--bash');
+  const allowedTools = [...READ, ...(canWrite ? WRITE : []), ...(canBash ? ['Bash'] : [])];
+  const disallowedTools = [...(canWrite ? [] : WRITE), ...(canBash ? [] : ['Bash'])];
 
   const roster = rosterFromPlan(plan);
   const runConfig: OffageConfig = {
@@ -158,6 +170,7 @@ async function main() {
     provider: MOCK ? 'mock' : 'claude-agent-sdk',
     agents: roster,
     allowedTools,
+    disallowedTools,
     concurrency: Math.max(roster.length, cfg.concurrency),
   };
 
