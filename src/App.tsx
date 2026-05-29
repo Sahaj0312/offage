@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { PointerLockControls as PLC } from 'three-stdlib';
+import { OrbitControls } from '@react-three/drei';
 import { Lights } from './scene/Lights';
 import { Office } from './scene/Office';
 import { DeskCluster } from './scene/DeskCluster';
@@ -87,7 +88,7 @@ export default function App() {
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ fov: 70, near: 0.1, far: 200 }}
+        camera={{ fov: 70, near: 0.1, far: 200, position: preview ? [0, 3.5, 13] : [0, 1.65, 12.5] }}
         gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.15 }}
         onCreated={({ scene }) => {
           scene.background = new THREE.Color('#070a11');
@@ -97,7 +98,20 @@ export default function App() {
         <Lights />
         <Office />
         <DeskCluster />
-        <Player controlsRef={controlsRef} />
+        {preview ? (
+          // Inspect mode: drag to look around, scroll to zoom (no pointer lock).
+          <OrbitControls
+            makeDefault
+            target={[0, 1, -2]}
+            enablePan
+            enableZoom
+            minDistance={2}
+            maxDistance={26}
+            maxPolarAngle={Math.PI / 2 - 0.05}
+          />
+        ) : (
+          <Player controlsRef={controlsRef} />
+        )}
         <Effects />
       </Canvas>
 
