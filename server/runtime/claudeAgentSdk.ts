@@ -2,6 +2,15 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig, OffageConfig } from '../config';
 import { firstLine, type AgentRuntime, type RuntimeEvent } from './types';
 
+/** Turn a tool call into a readable one-liner, e.g. `tool: Write src/index.html`. */
+function toolSummary(name: string, input: unknown): string {
+  const o = (input ?? {}) as Record<string, unknown>;
+  const arg =
+    o.file_path ?? o.path ?? o.pattern ?? o.command ?? o.query ?? o.url ?? o.prompt ?? '';
+  const detail = typeof arg === 'string' && arg ? ' ' + firstLine(arg, 70) : '';
+  return `tool: ${name}${detail}`;
+}
+
 /**
  * Drives a Claude agent via the Claude Agent SDK. Auth is resolved by the SDK
  * exactly like the `claude` CLI (local subscription login, or ANTHROPIC_API_KEY)
@@ -46,9 +55,9 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           const lines: string[] = [];
           for (const block of msg.message.content) {
             if (block.type === 'text' && block.text.trim()) {
-              lines.push('> ' + firstLine(block.text));
+              lines.push('> ' + firstLine(block.text, 160));
             } else if (block.type === 'tool_use') {
-              lines.push(`> tool: ${block.name}`);
+              lines.push('> ' + toolSummary(block.name, (block as { input?: unknown }).input));
             }
           }
           progress = Math.min(0.9, progress + 0.12);

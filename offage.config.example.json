@@ -1,16 +1,16 @@
 {
   "provider": "claude-agent-sdk",
   "workdir": "~/projects/your-repo",
-  "model": "claude-sonnet-4-6",
-  "allowedTools": ["Read", "Grep", "Glob", "WebSearch", "WebFetch"],
   "concurrency": 3,
   "maxTurns": 12,
   "agents": [
     { "name": "Scout", "role": "Research & retrieval", "deskId": "d1", "systemPrompt": "You are a fast codebase researcher. Be concise." },
     { "name": "Drafter", "role": "Writes first-pass code", "deskId": "d2" },
-    { "name": "Critic", "role": "Reviews & refutes", "deskId": "d3" },
-    { "name": "Wrangler", "role": "Data extraction", "deskId": "d4" },
-    { "name": "Tester", "role": "Runs & verifies", "deskId": "d5" },
-    { "name": "Synth", "role": "Synthesizes results", "deskId": "d6" }
-  ]
+    { "name": "Critic", "role": "Reviews & refutes", "deskId": "d3" }
+  ],
+  "_notes": {
+    "model": "Optional. Omit to use your Claude default (e.g. Opus). Or set 'claude-opus-4-8' / 'claude-sonnet-4-6', or pass --model.",
+    "allowedTools": "Optional. The `offage` CLI controls tools via --write / --bash / --read-only; this field is used by `npm run serve`.",
+    "note": "The `offage` CLI ignores `agents` here — Claude plans the team from your goal. This file is mainly for the `npm run serve` path."
+  }
 }

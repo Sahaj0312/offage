@@ -1,11 +1,13 @@
 import * as readline from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+import { resolve } from 'node:path';
 import { DEFAULT_WS_PORT } from '../shared/agent';
 import type { AgentConfig, OffageConfig } from '../server/config';
 import { loadConfig } from '../server/config';
 import { probeAuth } from '../server/auth';
 import { planTeam, type TeamPlan } from '../server/planner';
 import { makeOrchestrator, startServer } from '../server/serve';
+import type { Orchestrator } from '../server/orchestrator';
 import { banner, c, hyperlink, spinner } from './ui';
 
 function arg(flag: string): string | undefined {
@@ -42,7 +44,7 @@ async function ensureAuth(config: OffageConfig): Promise<boolean> {
   const sp = spinner('Checking your Claude login…');
   let info = await probeAuth(config.model);
   if (info) {
-    sp.succeed(`Logged in — Claude Code v${info.version}, model ${info.model} ${c.dim(`(${info.apiKeySource})`)}`);
+    sp.succeed(`Logged in — Claude Code v${info.version} · model ${c.bold(info.model)}`);
     return true;
   }
   sp.fail('Not logged in to Claude.');
@@ -73,6 +75,31 @@ function rosterFromPlan(plan: TeamPlan): AgentConfig[] {
   }));
 }
 
+const FEED_COLORS = [c.cyan, c.green, c.magenta, c.yellow, c.blue];
+
+/** Print a live, colored feed of each agent's output + status to the terminal. */
+function attachFeed(orchestrator: Orchestrator) {
+  const seen = new Map<string, number>();
+  const lastStatus = new Map<string, string>();
+  orchestrator.onChange((agents) => {
+    agents.forEach((a, i) => {
+      const tag = FEED_COLORS[i % FEED_COLORS.length](a.name.padEnd(9));
+      const prev = seen.get(a.id) ?? 0;
+      if (a.output.length > prev) {
+        for (const line of a.output.slice(prev)) {
+          process.stdout.write(`  ${tag} ${c.dim(line.replace(/^>\s?/, ''))}\n`);
+        }
+        seen.set(a.id, a.output.length);
+      }
+      if (lastStatus.get(a.id) !== a.status) {
+        lastStatus.set(a.id, a.status);
+        if (a.status === 'done') process.stdout.write(`  ${tag} ${c.green('● done')}\n`);
+        else if (a.status === 'error') process.stdout.write(`  ${tag} ${c.red('● error')}\n`);
+      }
+    });
+  });
+}
+
 function printTeam(plan: TeamPlan) {
   console.log(`\n  ${c.dim(plan.summary)}\n`);
   plan.agents.forEach((a, i) => {
@@ -84,8 +111,13 @@ function printTeam(plan: TeamPlan) {
 async function main() {
   console.log(banner());
   const { config } = loadConfig(arg('--config'));
+  const cfg: OffageConfig = {
+    ...config,
+    model: arg('--model') ?? config.model,
+    workdir: arg('--workdir') ? resolve(process.cwd(), arg('--workdir') as string) : config.workdir,
+  };
 
-  if (!MOCK && !(await ensureAuth(config))) process.exit(1);
+  if (!MOCK && !(await ensureAuth(cfg))) process.exit(1);
 
   const goal = await getGoal();
   if (!goal) {
@@ -100,7 +132,7 @@ async function main() {
   } else {
     const sp = spinner('Claude is assembling your team…');
     try {
-      plan = await planTeam(goal, config);
+      plan = await planTeam(goal, cfg);
       sp.succeed(`Claude assembled a team of ${c.bold(String(plan.agents.length))}.`);
     } catch (err) {
       sp.fail(`Planning failed: ${(err as Error).message}`);
@@ -109,30 +141,50 @@ async function main() {
   }
   printTeam(plan);
 
-  // Build the run config and boot the office.
+  // Choose the agents' tool capabilities. Read-only by default is safe but can't
+  // build anything; --write lets them create/edit files, --bash adds shell.
+  const READ = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'];
+  const readOnly = has('--read-only');
+  const canWrite = has('--write') || has('--build');
+  const allowedTools = readOnly
+    ? READ
+    : canWrite
+      ? [...READ, 'Write', 'Edit', ...(has('--bash') ? ['Bash'] : [])]
+      : READ;
+
   const roster = rosterFromPlan(plan);
   const runConfig: OffageConfig = {
-    ...config,
+    ...cfg,
     provider: MOCK ? 'mock' : 'claude-agent-sdk',
     agents: roster,
-    concurrency: Math.max(roster.length, config.concurrency),
+    allowedTools,
+    concurrency: Math.max(roster.length, cfg.concurrency),
   };
 
   const sp = spinner('Loading your office…');
   const orchestrator = makeOrchestrator(runConfig);
   const server = await startServer({ orchestrator, port: PORT, serveDist: true, open: !NO_OPEN });
-
-  // Send each agent off on its first task — the office opens already working.
-  plan.agents.forEach((a, i) => orchestrator.assign(`a${i + 1}`, a.task));
   sp.succeed('Your office is ready.');
 
   const link = hyperlink(server.url);
+  const count = `${roster.length} ${roster.length === 1 ? 'agent' : 'agents'}`;
+  console.log(`\n  ${c.green('●')} ${c.bold(count)} at work in ${MOCK ? c.dim('(mock)') : c.dim(runConfig.workdir)}`);
+  if (!MOCK) {
+    console.log(
+      canWrite
+        ? `  ${c.yellow('⚠ agents can create & edit files' + (has('--bash') ? ' and run commands' : '') + ' in this directory')}`
+        : `  ${c.dim('read-only: agents will explore & plan but not write files. Re-run with --write to let them build.')}`,
+    );
+  }
   console.log(
-    `\n  ${c.green('●')} ${c.bold(roster.length + (roster.length === 1 ? ' agent' : ' agents'))} at work in ` +
-      `${MOCK ? c.dim('(mock)') : c.dim(runConfig.workdir)}` +
-      `\n  ${c.bold('Enter your office:')} ${c.cyan(link)}` +
+    `  ${c.bold('Enter your office:')} ${c.cyan(link)}` +
       `\n  ${c.dim('Walk: WASD + mouse · Inspect/assign: E · Orchestration board: M · Quit: Ctrl+C')}\n`,
   );
+
+  // Stream a live feed to the terminal, then send each agent off on its first task.
+  console.log(c.dim('  live activity ─────────────────────────────'));
+  attachFeed(orchestrator);
+  plan.agents.forEach((a, i) => orchestrator.assign(`a${i + 1}`, a.task));
 
   const shutdown = () => {
     console.log(c.dim('\n  Closing the office. Bye!\n'));

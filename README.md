@@ -40,10 +40,25 @@ npm run offage           # or, once published:  npx offage
 ```
 
 If you're not logged in, it tells you to run `claude` (or set `ANTHROPIC_API_KEY`) and
-retries. Agents work in the directory you launched from, **read-only by default**.
+retries. A **live feed** of every agent's output (tool calls, text, done/error) streams to
+your terminal so you can see them working, while the office shows it in 3D.
 
-Flags: `--mock` (scripted team, no auth/cost), `--goal "…"` (skip the prompt),
-`--port <n>`, `--no-open`, `--config <path>`.
+Agents work in the directory you launched from. They're **read-only by default** (explore &
+plan); add `--write` so they can actually create/edit files.
+
+| Flag | What it does |
+|------|--------------|
+| `--write` (`--build`) | Let agents create & edit files (adds `Write`/`Edit`). Needed to actually build something. |
+| `--bash` | Also allow shell commands (with `--write`). Off by default. |
+| `--read-only` | Force explore-only (no file changes). |
+| `--workdir <dir>` | Where agents operate (default: current directory). Use a fresh folder for build tasks. |
+| `--model <id>` | e.g. `--model opus`. Omit to use your Claude default — **you're not limited to Sonnet**. |
+| `--goal "…"` | Skip the prompt. |
+| `--mock` | Scripted demo team, no auth/cost. |
+| `--port <n>` · `--no-open` · `--config <path>` | Server port · don't auto-open browser · config file. |
+
+> **Tip:** to actually build a project, run in a fresh directory with `--write`:
+> `cd ~/projects/new-site && offage --write`
 
 ## Other ways to run
 
