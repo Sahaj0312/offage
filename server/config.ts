@@ -9,6 +9,7 @@ export interface AgentConfig {
   name: string;
   role: string;
   deskId: string;
+  kind?: 'worker' | 'manager';
   /** optional per-agent system prompt appended to the runtime's base prompt */
   systemPrompt?: string;
   /** optional per-agent tool allowlist override */

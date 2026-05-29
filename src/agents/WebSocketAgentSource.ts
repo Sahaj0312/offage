@@ -1,4 +1,4 @@
-import type { Agent, AgentSource } from './types';
+import type { Agent, AgentSource, ChatRole } from './types';
 import type { ClientMessage, ServerMessage } from '../../shared/agent';
 import { DEFAULT_WS_PORT } from '../../shared/agent';
 
@@ -22,6 +22,7 @@ export class WebSocketAgentSource implements AgentSource {
   private ws: WebSocket | null = null;
   private agents: Agent[] = [];
   private listeners = new Set<(a: Agent[]) => void>();
+  private chatListeners = new Set<(role: ChatRole, text: string) => void>();
   private usingFallback = false;
   private connected = false;
   private url: string;
@@ -69,6 +70,7 @@ export class WebSocketAgentSource implements AgentSource {
       ws.onmessage = (ev) => {
         const msg: ServerMessage = JSON.parse(ev.data);
         if (msg.type === 'snapshot') this.emit(msg.agents);
+        else if (msg.type === 'chat') for (const cb of this.chatListeners) cb(msg.role, msg.text);
       };
       ws.onerror = () => {
         clearTimeout(timeout);
@@ -89,6 +91,19 @@ export class WebSocketAgentSource implements AgentSource {
     } else {
       this.fallback.sendTask(agentId, task);
     }
+  }
+
+  sendMessage(text: string) {
+    if (this.connected && this.ws) {
+      this.ws.send(JSON.stringify({ type: 'message', text } satisfies ClientMessage));
+    } else {
+      this.fallback.sendMessage(text);
+    }
+  }
+
+  onChat(cb: (role: ChatRole, text: string) => void) {
+    this.chatListeners.add(cb);
+    return () => this.chatListeners.delete(cb);
   }
 
   stop() {

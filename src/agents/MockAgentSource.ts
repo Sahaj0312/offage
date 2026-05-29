@@ -79,6 +79,12 @@ export class MockAgentSource implements AgentSource {
     for (const cb of this.listeners) cb(this.agents);
   }
 
+  // The mock has no real Manager; messages/chat are no-ops.
+  sendMessage(_text: string) {}
+  onChat(_cb: (role: 'user' | 'manager' | 'system', text: string) => void) {
+    return () => {};
+  }
+
   sendTask(agentId: string, task: string) {
     const a = this.agents.find((x) => x.id === agentId);
     if (!a) return;

@@ -27,9 +27,11 @@ export default function App() {
     const source = createAgentSource();
     setSource(source);
     const unsub = source.subscribe((agents) => setAgents(agents));
+    const unsubChat = source.onChat((role, text) => useStore.getState().pushChat(role, text));
     source.start();
     return () => {
       unsub();
+      unsubChat();
       source.stop();
     };
   }, [setSource, setAgents]);

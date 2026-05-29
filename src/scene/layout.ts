@@ -21,6 +21,8 @@ export const DESK_SLOTS: DeskSlot[] = [
   { id: 'd4', position: [7, 0, 1], rotation: 0 },
   { id: 'd5', position: [-7, 0, 10], rotation: 0 },
   { id: 'd6', position: [7, 0, 10], rotation: 0 },
+  // The Manager (lead agent) sits at the head of the room, facing the team.
+  { id: 'manager', position: [0, 0, -12], rotation: Math.PI },
 ];
 
 export function deskSlot(id: string): DeskSlot | undefined {

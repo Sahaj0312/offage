@@ -9,6 +9,9 @@ import { probeAuth } from '../server/auth';
 import { planTeam, type TeamPlan } from '../server/planner';
 import { makeOrchestrator, startServer } from '../server/serve';
 import type { Orchestrator } from '../server/orchestrator';
+import { Manager } from '../server/manager';
+import { Coordinator } from '../server/coordinator';
+import type { ChatRole } from '../shared/agent';
 import { banner, c, hyperlink, spinner } from './ui';
 
 function arg(flag: string): string | undefined {
@@ -84,6 +87,7 @@ function attachFeed(orchestrator: Orchestrator) {
   const lastStatus = new Map<string, string>();
   orchestrator.onChange((agents) => {
     agents.forEach((a, i) => {
+      if (a.kind === 'manager') return; // the Manager is shown via the chat, not the worker feed
       const tag = FEED_COLORS[i % FEED_COLORS.length](a.name.padEnd(9));
       const prev = seen.get(a.id) ?? 0;
       if (a.output.length > prev) {
@@ -99,6 +103,13 @@ function attachFeed(orchestrator: Orchestrator) {
       }
     });
   });
+}
+
+/** Print a Manager/system chat line in the terminal ('user' is echoed by readline). */
+function printChat(role: ChatRole, text: string) {
+  if (role === 'user') return;
+  if (role === 'system') console.log(`  ${c.yellow(text)}`);
+  else console.log(`\n  ${c.cyan('⊹ Manager')}  ${text}`);
 }
 
 function printTeam(plan: TeamPlan) {
@@ -164,7 +175,12 @@ async function main() {
   const allowedTools = [...READ, ...(canWrite ? WRITE : []), ...(canBash ? ['Bash'] : [])];
   const disallowedTools = [...(canWrite ? [] : WRITE), ...(canBash ? [] : ['Bash'])];
 
-  const roster = rosterFromPlan(plan);
+  const workers = rosterFromPlan(plan);
+  const useManager = !MOCK;
+  // The Manager is a 'manager'-kind agent at its own desk; workers are the rest.
+  const agents = useManager
+    ? [...workers, { id: 'manager', name: 'Manager', role: 'Lead — coordinates the team', deskId: 'manager', kind: 'manager' as const }]
+    : workers;
 
   // Isolate concurrent writers in their own git worktrees so they can't collide.
   // Default on for multi-agent --write builds; --isolate / --no-isolate to force.
@@ -172,25 +188,47 @@ async function main() {
     ? true
     : has('--no-isolate')
       ? false
-      : !MOCK && canWrite && roster.length > 1;
+      : !MOCK && canWrite && workers.length > 1;
 
   const runConfig: OffageConfig = {
     ...cfg,
     provider: MOCK ? 'mock' : 'claude-agent-sdk',
-    agents: roster,
+    agents,
     allowedTools,
     disallowedTools,
     isolate,
-    concurrency: Math.max(roster.length, cfg.concurrency),
+    concurrency: Math.max(workers.length, cfg.concurrency),
   };
 
-  const sp = spinner('Loading your office…');
   const orchestrator = makeOrchestrator(runConfig);
-  const server = await startServer({ orchestrator, port: PORT, serveDist: true, open: !NO_OPEN });
+
+  // Wire up the lead agent (Manager) + coordinator before serving, so in-world
+  // chat messages can route straight to it.
+  let coordinator: Coordinator | null = null;
+  if (useManager) {
+    const manager = new Manager(cfg, goal, plan.agents.map((a) => ({ name: a.name, role: a.role })));
+    const nameToId = new Map(workers.map((w) => [w.name.toLowerCase(), w.id]));
+    coordinator = new Coordinator(orchestrator, manager, nameToId);
+  }
+
+  const sp = spinner('Loading your office…');
+  const server = await startServer({
+    orchestrator,
+    port: PORT,
+    serveDist: true,
+    open: !NO_OPEN,
+    onMessage: (text) => coordinator?.userTurn(text),
+  });
   sp.succeed('Your office is ready.');
 
+  // Mirror the Manager conversation to the terminal and to every browser.
+  coordinator?.onChat((role, text) => {
+    printChat(role, text);
+    server.broadcast({ type: 'chat', role, text });
+  });
+
   const link = hyperlink(server.url);
-  const count = `${roster.length} ${roster.length === 1 ? 'agent' : 'agents'}`;
+  const count = `${workers.length} ${workers.length === 1 ? 'agent' : 'agents'}`;
   console.log(`\n  ${c.green('●')} ${c.bold(count)} at work in ${MOCK ? c.dim('(mock)') : c.dim(runConfig.workdir)}`);
   if (!MOCK) {
     console.log(
@@ -205,21 +243,41 @@ async function main() {
   }
   console.log(
     `  ${c.bold('Enter your office:')} ${c.cyan(link)}` +
-      `\n  ${c.dim('Walk: WASD + mouse · Inspect/assign: E · Orchestration board: M · Quit: Ctrl+C')}\n`,
+      `\n  ${c.dim('Walk: WASD + mouse · Inspect/assign: E · Manager desk: chat · Quit: Ctrl+C')}\n`,
   );
 
-  // Stream a live feed to the terminal, then send each agent off on its first task.
+  // Stream a live feed to the terminal, then send each worker off on its first task.
   console.log(c.dim('  live activity ─────────────────────────────'));
   attachFeed(orchestrator);
-  plan.agents.forEach((a, i) => orchestrator.assign(`a${i + 1}`, a.task));
+  workers.forEach((w, i) => orchestrator.assign(w.id, plan.agents[i].task));
 
   const shutdown = () => {
     console.log(c.dim('\n  Closing the office. Bye!\n'));
     server.close();
     process.exit(0);
   };
-  process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+  if (coordinator) {
+    // Manager waits for the first round, summarizes, then we converse.
+    await coordinator.runInitialRound(workers.map((w) => w.id));
+    const rl = readline.createInterface({ input: stdin, output: stdout });
+    rl.on('SIGINT', () => {
+      rl.close();
+      shutdown();
+    });
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const text = (await rl.question(c.cyan('\nyou › '))).trim();
+      if (!text) continue;
+      if (text === '/quit' || text === '/exit') break;
+      await coordinator.userTurn(text);
+    }
+    rl.close();
+    shutdown();
+  } else {
+    process.on('SIGINT', shutdown);
+  }
 }
 
 main().catch((err) => {

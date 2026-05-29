@@ -1,8 +1,8 @@
 // Re-export the canonical model so the whole frontend keeps importing from here,
 // while the single source of truth lives in shared/ (used by the server too).
-export type { Agent, AgentStatus } from '../../shared/agent';
+export type { Agent, AgentStatus, ChatRole } from '../../shared/agent';
 
-import type { Agent } from '../../shared/agent';
+import type { Agent, ChatRole } from '../../shared/agent';
 
 /**
  * The single contract the entire 3D scene reads from. v1 ships MockAgentSource;
@@ -13,6 +13,10 @@ export interface AgentSource {
   getAgents(): Agent[];
   subscribe(cb: (agents: Agent[]) => void): () => void;
   sendTask(agentId: string, task: string): void;
+  /** Send a chat message to the Manager (lead agent). */
+  sendMessage(text: string): void;
+  /** Subscribe to Manager/conversation messages. */
+  onChat(cb: (role: ChatRole, text: string) => void): () => void;
   start(): void;
   stop(): void;
 }

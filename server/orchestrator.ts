@@ -1,4 +1,4 @@
-import type { Agent } from '../shared/agent';
+import type { Agent, AgentStatus } from '../shared/agent';
 import type { AgentConfig } from './config';
 import type { AgentRuntime, RuntimeEvent } from './runtime/types';
 
@@ -7,6 +7,9 @@ export interface Orchestrator {
   getAgents(): Agent[];
   onChange(cb: (agents: Agent[]) => void): () => void;
   assign(agentId: string, task: string): void;
+  /** Append output lines (and optionally set status) on any agent — used to
+   * drive the Manager's in-world presence from the coordinator. */
+  post(agentId: string, lines: string[], status?: AgentStatus): void;
   start(): void;
   stop(): void;
 }
@@ -21,6 +24,7 @@ function initialAgents(roster: AgentConfig[]): Agent[] {
     task: null,
     progress: 0,
     output: [],
+    ...(a.kind ? { kind: a.kind } : {}),
   }));
 }
 
@@ -65,6 +69,10 @@ abstract class BaseOrchestrator implements Orchestrator {
     if (typeof e.progress === 'number') a.progress = e.progress;
     if (e.appendOutput) a.output = pushLogs(a.output, e.appendOutput);
     this.broadcast();
+  }
+
+  post(agentId: string, lines: string[], status?: AgentStatus) {
+    this.apply(agentId, { appendOutput: lines, ...(status ? { status } : {}) });
   }
 
   abstract assign(agentId: string, task: string): void;

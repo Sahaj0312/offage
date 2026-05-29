@@ -56,6 +56,7 @@ export interface StartedServer {
   url: string;
   port: number;
   orchestrator: Orchestrator;
+  broadcast(msg: ServerMessage): void;
   close(): void;
 }
 
@@ -65,11 +66,18 @@ export function startServer(opts: {
   port: number;
   serveDist: boolean;
   open?: boolean;
+  /** called when a browser sends a chat message to the Manager */
+  onMessage?: (text: string) => void;
 }): Promise<StartedServer> {
   const { orchestrator, port, serveDist } = opts;
   return new Promise((resolveStarted) => {
     const http = createServer((req, res) => serveStatic(req, res, serveDist));
     const wss = new WebSocketServer({ server: http });
+
+    const broadcast = (msg: ServerMessage) => {
+      const data = JSON.stringify(msg);
+      for (const ws of wss.clients) if (ws.readyState === ws.OPEN) ws.send(data);
+    };
 
     wss.on('connection', (ws) => {
       const send = (msg: ServerMessage) => {
@@ -86,6 +94,7 @@ export function startServer(opts: {
           return;
         }
         if (msg.type === 'task') orchestrator.assign(msg.agentId, msg.task);
+        else if (msg.type === 'message') opts.onMessage?.(msg.text);
       });
       ws.on('close', unsub);
     });
@@ -98,6 +107,7 @@ export function startServer(opts: {
         url,
         port,
         orchestrator,
+        broadcast,
         close: () => {
           orchestrator.stop();
           wss.close();

@@ -61,6 +61,19 @@ plan); add `--write` so they can actually create/edit files.
 > **Tip:** to actually build a project, run in a fresh directory with `--write`:
 > `cd ~/projects/new-site && offage --write`
 
+### The Manager (lead agent)
+
+You don't just fire off a team and watch — there's a **Manager**, the lead agent you converse
+with (like the main agent in Claude Code). After the team finishes a round, the Manager
+**synthesizes** what they did and reports back; your follow-ups go *through* the Manager, which
+**delegates** new tasks to the team. It runs as a `manager`-kind agent at the head-of-room desk.
+
+- **In the terminal:** after the office opens, you get a `you ›` prompt. Type a follow-up
+  ("make the earth bigger and add clouds") → the Manager assigns it to the team, waits, and
+  summarizes. `/quit` to exit.
+- **In the office:** walk up to the **Manager's desk** and press `E` to chat in a panel — same
+  conversation, same delegation.
+
 ### Multi-agent isolation (git worktrees)
 
 When Claude picks a team of 2+ agents and `--write` is on, each agent works in its **own git
