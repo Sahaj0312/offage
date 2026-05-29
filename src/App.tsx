@@ -6,6 +6,7 @@ import { Lights } from './scene/Lights';
 import { Office } from './scene/Office';
 import { DeskCluster } from './scene/DeskCluster';
 import { Player } from './scene/Player';
+import { Effects } from './scene/Effects';
 import { Crosshair } from './hud/Crosshair';
 import { ControlsHint } from './hud/ControlsHint';
 import { InfoPanel } from './hud/InfoPanel';
@@ -75,7 +76,9 @@ export default function App() {
   const selectedId = useStore((s) => s.selectedAgentId);
   const whiteboardOpen = useStore((s) => s.whiteboardOpen);
   const managerAttention = useStore((s) => s.managerAttention);
-  const showStart = !locked && !selectedId && !whiteboardOpen;
+  // ?preview hides the entry overlay so the scene is fully visible (demos/screenshots).
+  const preview = typeof location !== 'undefined' && new URLSearchParams(location.search).has('preview');
+  const showStart = !preview && !locked && !selectedId && !whiteboardOpen;
 
   const relock = () => controlsRef.current?.lock();
 
@@ -83,17 +86,19 @@ export default function App() {
     <>
       <Canvas
         shadows
+        dpr={[1, 2]}
         camera={{ fov: 70, near: 0.1, far: 200 }}
-        gl={{ antialias: true }}
+        gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.15 }}
         onCreated={({ scene }) => {
-          scene.background = new THREE.Color('#0b0e14');
-          scene.fog = new THREE.Fog('#0b0e14', 22, 46);
+          scene.background = new THREE.Color('#070a11');
+          scene.fog = new THREE.FogExp2('#070a11', 0.022);
         }}
       >
         <Lights />
         <Office />
         <DeskCluster />
         <Player controlsRef={controlsRef} />
+        <Effects />
       </Canvas>
 
       <div className="hud">
