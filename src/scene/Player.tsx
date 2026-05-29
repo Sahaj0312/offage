@@ -33,7 +33,13 @@ function useKeyboard() {
 export function Player({ controlsRef }: { controlsRef: React.MutableRefObject<PLC | null> }) {
   const { camera } = useThree();
   const keys = useKeyboard();
-  const obstacles = useMemo(() => buildObstacles(), []);
+  // Only desks that are actually staffed block movement / can be focused, so a
+  // smaller (Claude-chosen) team doesn't leave invisible walls in empty slots.
+  const occupiedDesks = useStore((s) => s.agents.map((a) => a.deskId).join(','));
+  const obstacles = useMemo(
+    () => buildObstacles(occupiedDesks ? occupiedDesks.split(',') : []),
+    [occupiedDesks],
+  );
   const forward = useRef(new THREE.Vector3());
   const right = useRef(new THREE.Vector3());
 
@@ -64,20 +70,21 @@ export function Player({ controlsRef }: { controlsRef: React.MutableRefObject<PL
     }
     camera.position.y = EYE_HEIGHT;
 
-    // Proximity: focus the nearest desk's agent if within range.
-    let nearestDesk: string | null = null;
+    // Proximity: focus the nearest *staffed* desk's agent if within range.
+    const agents = useStore.getState().agents;
+    let focusId: string | null = null;
     let best = FOCUS_RADIUS * FOCUS_RADIUS;
     for (const d of DESK_SLOTS) {
+      const agent = agents.find((a) => a.deskId === d.id);
+      if (!agent) continue;
       const dx = camera.position.x - d.position[0];
       const dz = camera.position.z - d.position[2];
       const dist = dx * dx + dz * dz;
       if (dist < best) {
         best = dist;
-        nearestDesk = d.id;
+        focusId = agent.id;
       }
     }
-    const agents = useStore.getState().agents;
-    const focusId = nearestDesk ? agents.find((a) => a.deskId === nearestDesk)?.id ?? null : null;
     useStore.getState().setFocused(focusId);
   });
 

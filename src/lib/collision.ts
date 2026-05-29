@@ -8,9 +8,13 @@ export interface Box2D {
   maxZ: number;
 }
 
-/** Build static obstacle boxes: desk footprints (incl. chair area). */
-export function buildObstacles(): Box2D[] {
-  return DESK_SLOTS.map((d) => {
+/**
+ * Build static obstacle boxes from desk footprints (incl. chair area). Pass the
+ * set of occupied desk ids so empty slots (no agent seated) don't block movement.
+ */
+export function buildObstacles(occupiedDeskIds?: Iterable<string>): Box2D[] {
+  const occupied = occupiedDeskIds ? new Set(occupiedDeskIds) : null;
+  return DESK_SLOTS.filter((d) => !occupied || occupied.has(d.id)).map((d) => {
     const [x, , z] = d.position;
     // desk is ~3 wide (x) and the workstation incl. chair spans ~3 deep (z)
     return { minX: x - 1.7, maxX: x + 1.7, minZ: z - 1.4, maxZ: z + 1.8 };

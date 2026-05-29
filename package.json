@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "offage": "node bin/offage.mjs",
+    "cli": "tsx cli/index.ts",
     "server": "tsx server/index.ts",
     "dev:all": "concurrently -n ui,server -c cyan,magenta \"vite\" \"tsx server/index.ts\"",
     "serve": "npm run build && tsx server/index.ts --serve-dist",

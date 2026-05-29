@@ -10,26 +10,49 @@ Offage is **local-first**: you run it on your machine and it drives the agent to
 login or `ANTHROPIC_API_KEY`). Offage never sees your credentials. The 3D office is just the
 render + control surface over a small local orchestrator.
 
-## Quick start
+## The `offage` command (recommended)
+
+Run it like `claude` / `codex` — it checks your Claude login, asks what you want to build,
+has **Claude design a team of agents** for the goal, then opens a 3D office already staffed
+and working:
 
 ```bash
 npm install
-
-# 1) Pure demo, no server — scripted agents, works offline:
-npm run dev                      # http://localhost:5173  (mock data)
-
-# 2) Live, single command — builds UI + runs the local orchestrator on one port:
-npm run serve                    # opens http://localhost:8787
-#    or, once published:  npx offage
-
-# 3) Dev with hot reload + a live orchestrator side by side:
-npm run dev:all                  # Vite on 5173 + orchestrator on 8787
-
-npm run typecheck                # frontend + server
+npm run offage           # or, once published:  npx offage
 ```
 
-By default the orchestrator runs the **mock** provider (no auth needed). Point it at real
-agents with a config file (see below).
+```
+   ▟█▙ ▒▒▒  Offage
+   ▜█▛ a walkable 3D office for your AI agents
+
+✓ Logged in — Claude Code v2.1.x, model claude-sonnet-4-6
+
+  What would you like to build today?
+  › add a dark-mode toggle and tests
+
+✓ Claude assembled a team of 2.
+  1. Builder · Feature Implementer
+  2. Tester  · Test Author
+✓ Your office is ready.
+
+  ● 2 agents at work in /path/to/your/project
+  Enter your office: http://localhost:8787   ← click it
+```
+
+If you're not logged in, it tells you to run `claude` (or set `ANTHROPIC_API_KEY`) and
+retries. Agents work in the directory you launched from, **read-only by default**.
+
+Flags: `--mock` (scripted team, no auth/cost), `--goal "…"` (skip the prompt),
+`--port <n>`, `--no-open`, `--config <path>`.
+
+## Other ways to run
+
+```bash
+npm run dev          # http://localhost:5173 — pure offline demo (add /?mock to force)
+npm run serve        # build UI + run orchestrator on one port (uses offage.config.json)
+npm run dev:all      # Vite (5173) + orchestrator (8787) with hot reload
+npm run typecheck    # frontend + server + cli
+```
 
 ## Configure (per user)
 
@@ -84,7 +107,14 @@ CLI flags: `--config <path>`, `--port <n>`, `--serve-dist`, `--no-open`.
   │  R3F scene    DOM HUD                       │
   │  src/scene/   src/hud/                      │
   └─────────────────────────────────────────────┘
+
+  cli/index.ts ─ banner → auth probe (server/auth.ts) → "what to build?" →
+                 planner (server/planner.ts asks Claude for a 1–6 agent roster) →
+                 startServer() with that roster → auto-assigns each agent its first task
 ```
+
+The roster is dynamic: Claude decides how many agents the goal needs (capped at the 6 desk
+slots) and the office renders exactly that many desks — only staffed desks block movement.
 
 The 3D scene only ever reads from an `AgentSource`. `WebSocketAgentSource` and
 `MockAgentSource` implement the same interface, so the scene is identical whether data is

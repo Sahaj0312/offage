@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * `offage` launcher: builds the UI if needed, then starts the local orchestrator
- * serving the office on one port. Delegates to tsx so the TS server runs directly.
+ * `offage` — interactive launcher. Ensures the UI is built, then runs the CLI
+ * flow (auth check → "what to build" → Claude plans a team → office opens).
+ * Pass --mock to skip auth/planning and run a scripted demo team.
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -24,4 +25,4 @@ if (!existsSync(distIndex)) {
   await run('npm', ['run', 'build']);
 }
 
-await run('npx', ['tsx', 'server/index.ts', '--serve-dist', ...args]);
+await run('npx', ['tsx', 'cli/index.ts', ...args]);
