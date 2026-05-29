@@ -1,4 +1,4 @@
-import { Html, MeshReflectorMaterial, RoundedBox, Sparkles } from '@react-three/drei';
+import { Html, RoundedBox, Sparkles } from '@react-three/drei';
 import { ROOM_HALF, WALL_HEIGHT } from './layout';
 
 const SIZE = ROOM_HALF * 2;
@@ -48,22 +48,11 @@ function Neon({
 export function Office() {
   return (
     <group>
-      {/* Glossy reflective floor — picks up the glowing monitors + neon */}
+      {/* Glossy floor — cheap: reflects the Environment via metalness (no per-frame
+          reflection render). Reads as polished dark concrete catching the neon. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[SIZE, SIZE]} />
-        <MeshReflectorMaterial
-          resolution={1024}
-          mixBlur={0.8}
-          mixStrength={14}
-          blur={[200, 60]}
-          roughness={0.32}
-          depthScale={1.0}
-          minDepthThreshold={0.3}
-          maxDepthThreshold={1.2}
-          color="#070a12"
-          metalness={0.85}
-          mirror={0.75}
-        />
+        <meshStandardMaterial color="#0b0f18" metalness={0.7} roughness={0.42} envMapIntensity={0.9} />
       </mesh>
 
       {/* Ceiling */}
@@ -160,8 +149,8 @@ export function Office() {
         </mesh>
       </group>
 
-      {/* Floating dust motes catching the light */}
-      <Sparkles count={120} scale={[SIZE - 2, WALL_HEIGHT, SIZE - 2]} position={[0, WALL_HEIGHT / 2, 0]} size={2} speed={0.25} opacity={0.5} color="#bcd2ff" />
+      {/* Floating dust motes catching the light (cheap point sprites) */}
+      <Sparkles count={50} scale={[SIZE - 2, WALL_HEIGHT, SIZE - 2]} position={[0, WALL_HEIGHT / 2, 0]} size={2} speed={0.25} opacity={0.5} color="#bcd2ff" />
     </group>
   );
 }

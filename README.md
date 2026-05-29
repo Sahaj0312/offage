@@ -139,17 +139,19 @@ CLI flags: `--config <path>`, `--port <n>`, `--serve-dist`, `--no-open`.
 
 - **Click** to enter (locks the cursor) · **WASD / arrows** move · **mouse** look
 - **E** inspect / task the nearest agent · **M** orchestration board · **Esc** release cursor
-- Add `?preview` to the URL to hide the entry overlay and just look at the scene (demos/screenshots).
 
 ## Visuals
 
 A cinematic "late-night office": ACES tone mapping + **bloom** post-processing (glowing monitors,
-neon, status bubbles, the Manager's beacon all bleed HDR light), a **glossy reflective floor**,
-image-based environment lighting (no external HDR download), soft shadows, per-desk warm lamp
-pools, dust motes, a night-skyline backdrop, and a glowing OFFAGE wordmark. Characters are
-stylized low-poly workers animated procedurally — breathing, idle sway, head glances, and typing
-hand-taps when active. All built from primitives + `@react-three/postprocessing`; no external
-3D asset downloads required.
+neon, status bubbles, the Manager's beacon all bleed HDR light), a glossy floor, image-based
+environment lighting (no external HDR download), dust motes, a night-skyline backdrop, and a
+glowing OFFAGE wordmark. Characters are stylized low-poly workers animated procedurally —
+breathing, idle sway, head glances, and typing hand-taps when active.
+
+**Built to run anywhere**, not just on a dedicated GPU: no per-frame reflection passes, no PCSS
+soft shadows, a single shadow-casting light (1024 map), no per-desk dynamic lights (glow comes
+from emissive materials + bloom), capped pixel ratio, and light post-processing. All from
+primitives + `@react-three/postprocessing` — no external 3D asset downloads.
 
 ## Architecture
 

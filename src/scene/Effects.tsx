@@ -8,15 +8,15 @@ import { EffectComposer, Bloom, Vignette } from '@react-three/postprocessing';
  */
 export function Effects() {
   return (
-    <EffectComposer multisampling={4}>
+    <EffectComposer multisampling={2}>
       <Bloom
         mipmapBlur
-        intensity={0.9}
+        intensity={0.8}
         luminanceThreshold={1.0}
-        luminanceSmoothing={0.3}
-        levels={7}
+        luminanceSmoothing={0.25}
+        levels={5}
       />
-      <Vignette offset={0.32} darkness={0.62} eskil={false} />
+      <Vignette offset={0.32} darkness={0.55} eskil={false} />
     </EffectComposer>
   );
 }

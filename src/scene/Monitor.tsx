@@ -38,9 +38,6 @@ export function Monitor({ agent }: { agent: Agent }) {
         <meshStandardMaterial color="#05080d" emissive={v.glow} emissiveIntensity={0.4} toneMapped={false} />
       </mesh>
 
-      {/* screen glow onto desk + face */}
-      <pointLight position={[0, 0.64, 0.4]} color={v.glow} distance={2.4} intensity={v.intensity * 6} />
-
       {/* live text mapped onto the screen */}
       <Html transform position={[0, 0.64, 0.035]} distanceFactor={1.1} occlude style={{ pointerEvents: 'none' }}>
         <div

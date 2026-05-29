@@ -6,7 +6,6 @@ import { Lights } from './scene/Lights';
 import { Office } from './scene/Office';
 import { DeskCluster } from './scene/DeskCluster';
 import { Player } from './scene/Player';
-import { PreviewControls } from './scene/PreviewControls';
 import { Effects } from './scene/Effects';
 import { Crosshair } from './hud/Crosshair';
 import { ControlsHint } from './hud/ControlsHint';
@@ -77,9 +76,7 @@ export default function App() {
   const selectedId = useStore((s) => s.selectedAgentId);
   const whiteboardOpen = useStore((s) => s.whiteboardOpen);
   const managerAttention = useStore((s) => s.managerAttention);
-  // ?preview hides the entry overlay so the scene is fully visible (demos/screenshots).
-  const preview = typeof location !== 'undefined' && new URLSearchParams(location.search).has('preview');
-  const showStart = !preview && !locked && !selectedId && !whiteboardOpen;
+  const showStart = !locked && !selectedId && !whiteboardOpen;
 
   const relock = () => controlsRef.current?.lock();
 
@@ -87,9 +84,9 @@ export default function App() {
     <>
       <Canvas
         shadows
-        dpr={[1, 2]}
-        camera={{ fov: 70, near: 0.1, far: 200, position: preview ? [0, 3.5, 13] : [0, 1.65, 12.5] }}
-        gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.15 }}
+        dpr={[1, 1.5]}
+        camera={{ fov: 70, near: 0.1, far: 200, position: [0, 1.65, 12.5] }}
+        gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
         onCreated={({ scene }) => {
           scene.background = new THREE.Color('#070a11');
           scene.fog = new THREE.FogExp2('#070a11', 0.022);
@@ -98,7 +95,7 @@ export default function App() {
         <Lights />
         <Office />
         <DeskCluster />
-        {preview ? <PreviewControls /> : <Player controlsRef={controlsRef} />}
+        <Player controlsRef={controlsRef} />
         <Effects />
       </Canvas>
 

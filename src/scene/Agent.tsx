@@ -130,9 +130,6 @@ export function Agent({ data, slot }: { data: AgentData; slot: DeskSlot }) {
       <Chair />
       <DeskProps tint={v.color} />
 
-      {/* warm desk lamp pool so each worker reads against the dark room */}
-      <pointLight position={[0, 1.9, 0.6]} color={0xffd9a0} intensity={5} distance={3.4} decay={2} castShadow={false} />
-
       {/* Seated worker */}
       <group position={[0, 0, 0.52]}>
         <Character id={data.id} active={active} attention={attention} />
