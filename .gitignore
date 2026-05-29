@@ -3,3 +3,6 @@ dist
 .DS_Store
 *.local
 .vite
+
+# per-user local config (machine-specific workdir); commit offage.config.example.json instead
+offage.config.json
