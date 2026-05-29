@@ -142,16 +142,16 @@ CLI flags: `--config <path>`, `--port <n>`, `--serve-dist`, `--no-open`.
 
 ## Visuals
 
-A cinematic "late-night office": ACES tone mapping + **bloom** post-processing (glowing monitors,
-neon, status bubbles, the Manager's beacon all bleed HDR light), a glossy floor, image-based
-environment lighting (no external HDR download), dust motes, a night-skyline backdrop, and a
-glowing OFFAGE wordmark. Characters are stylized low-poly workers animated procedurally —
-breathing, idle sway, head glances, and typing hand-taps when active.
+A bright, realistic **open-plan tech-startup office** in natural daylight: light-wood floors, a
+floor-to-ceiling window wall with a city beyond, a brick accent wall, plants, a breakout lounge
+corner, and soft recessed ceiling lights. The workers are friendly **Wii-Mii-style** characters —
+big rounded heads, simple bodies, colorful office chairs — seated at their desks and animated
+procedurally (breathing, head glances, typing taps; the Manager waves when it needs you). Status
+shows as clean UI pills above each worker.
 
-**Built to run anywhere**, not just on a dedicated GPU: no per-frame reflection passes, no PCSS
-soft shadows, a single shadow-casting light (1024 map), no per-desk dynamic lights (glow comes
-from emissive materials + bloom), capped pixel ratio, and light post-processing. All from
-primitives + `@react-three/postprocessing` — no external 3D asset downloads.
+**Built to run anywhere**, not just a dedicated GPU: no post-processing/bloom, no per-frame
+reflection passes, no PCSS shadows, a single shadow-casting light (1024 map), no per-desk dynamic
+lights, capped pixel ratio. All from primitives — no external 3D asset downloads.
 
 ## Architecture
 

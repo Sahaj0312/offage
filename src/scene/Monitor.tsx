@@ -3,57 +3,49 @@ import type { Agent } from '../agents/types';
 import { statusVisual } from '../lib/statusVisuals';
 
 /**
- * The physical monitor + a live screen showing the agent's recent output. The
- * screen and a thin rim are status-tinted and HDR (toneMapped=false) so they
- * bloom, and a small point light spills the screen glow onto the desk + face.
+ * A normal desktop monitor showing the agent's recent output. Realistic (no neon
+ * glow): a matte bezel and a lit-but-not-blooming screen with the live log text.
  */
 export function Monitor({ agent }: { agent: Agent }) {
   const v = statusVisual(agent.status);
   const lastLines = agent.output.slice(-7);
 
   return (
-    <group position={[0, 0.79, -0.42]}>
+    <group position={[0, 0.8, -0.42]}>
       {/* stand */}
       <mesh position={[0, 0.04, 0]} castShadow>
         <cylinderGeometry args={[0.12, 0.15, 0.03, 16]} />
-        <meshStandardMaterial color="#15181f" metalness={0.5} roughness={0.4} />
+        <meshStandardMaterial color="#2a2e35" metalness={0.4} roughness={0.5} />
       </mesh>
       <mesh position={[0, 0.26, 0]} castShadow>
         <boxGeometry args={[0.06, 0.42, 0.05]} />
-        <meshStandardMaterial color="#1b1f29" metalness={0.4} roughness={0.5} />
+        <meshStandardMaterial color="#2a2e35" metalness={0.3} roughness={0.5} />
       </mesh>
 
       {/* bezel */}
-      <RoundedBox args={[1.24, 0.76, 0.05]} radius={0.025} position={[0, 0.64, 0]} castShadow>
-        <meshStandardMaterial color="#0c0f15" roughness={0.4} metalness={0.3} />
+      <RoundedBox args={[1.24, 0.76, 0.05]} radius={0.02} position={[0, 0.64, 0]} castShadow>
+        <meshStandardMaterial color="#26282d" roughness={0.5} metalness={0.2} />
       </RoundedBox>
-      {/* glowing status rim (HDR → blooms) */}
-      <mesh position={[0, 0.64, 0.027]}>
-        <planeGeometry args={[1.2, 0.72]} />
-        <meshStandardMaterial color={v.color} emissive={v.glow} emissiveIntensity={1.4} toneMapped={false} />
-      </mesh>
-      {/* screen base */}
-      <mesh position={[0, 0.64, 0.03]}>
-        <planeGeometry args={[1.12, 0.64]} />
-        <meshStandardMaterial color="#05080d" emissive={v.glow} emissiveIntensity={0.4} toneMapped={false} />
+      {/* screen surface (gently lit, not HDR) */}
+      <mesh position={[0, 0.64, 0.028]}>
+        <planeGeometry args={[1.14, 0.66]} />
+        <meshStandardMaterial color="#0d1320" emissive={0x0d1320} emissiveIntensity={0.6} roughness={0.3} />
       </mesh>
 
       {/* live text mapped onto the screen */}
-      <Html transform position={[0, 0.64, 0.035]} distanceFactor={1.1} occlude style={{ pointerEvents: 'none' }}>
+      <Html transform position={[0, 0.64, 0.032]} distanceFactor={1.1} occlude style={{ pointerEvents: 'none' }}>
         <div
           style={{
-            width: 250,
-            height: 142,
-            background: 'linear-gradient(160deg, #060a11, #0a0f1a)',
-            border: `1px solid ${v.color}66`,
-            borderRadius: 5,
+            width: 252,
+            height: 146,
+            background: '#0d1320',
+            borderRadius: 3,
             padding: '8px 10px',
             fontFamily: 'ui-monospace, monospace',
             fontSize: 11,
             lineHeight: 1.5,
             color: '#9fd0a8',
             overflow: 'hidden',
-            boxShadow: `inset 0 0 28px ${v.color}33`,
           }}
         >
           <div style={{ color: v.color, fontWeight: 700, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>

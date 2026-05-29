@@ -6,7 +6,6 @@ import { Lights } from './scene/Lights';
 import { Office } from './scene/Office';
 import { DeskCluster } from './scene/DeskCluster';
 import { Player } from './scene/Player';
-import { Effects } from './scene/Effects';
 import { Crosshair } from './hud/Crosshair';
 import { ControlsHint } from './hud/ControlsHint';
 import { InfoPanel } from './hud/InfoPanel';
@@ -86,17 +85,16 @@ export default function App() {
         shadows
         dpr={[1, 1.5]}
         camera={{ fov: 70, near: 0.1, far: 200, position: [0, 1.65, 12.5] }}
-        gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
+        gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
         onCreated={({ scene }) => {
-          scene.background = new THREE.Color('#070a11');
-          scene.fog = new THREE.FogExp2('#070a11', 0.022);
+          scene.background = new THREE.Color('#d7e3ee');
+          scene.fog = new THREE.Fog('#d7e3ee', 34, 64);
         }}
       >
         <Lights />
         <Office />
         <DeskCluster />
         <Player controlsRef={controlsRef} />
-        <Effects />
       </Canvas>
 
       <div className="hud">
