@@ -11,20 +11,36 @@ const SPEED = 6; // units / second
 const PLAYER_RADIUS = 0.45;
 const FOCUS_RADIUS = 3.4; // how close to a desk before the agent is "focused"
 
+/** True when focus is in a text field, so movement keys shouldn't drive the camera. */
+function isTyping(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+}
+
 function useKeyboard() {
   const keys = useRef<Record<string, boolean>>({});
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      // Don't capture movement keys while typing in a panel (chat / task input).
+      if (isTyping()) return;
       keys.current[e.code] = true;
     };
     const up = (e: KeyboardEvent) => {
       keys.current[e.code] = false;
     };
+    // If a field gains focus, release any held keys so the player can't keep gliding.
+    const onFocusIn = () => {
+      if (isTyping()) keys.current = {};
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+    window.addEventListener('focusin', onFocusIn);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('focusin', onFocusIn);
     };
   }, []);
   return keys;
@@ -49,10 +65,13 @@ export function Player({ controlsRef }: { controlsRef: React.MutableRefObject<PL
 
   useFrame((_, delta) => {
     const k = keys.current;
-    const move = new THREE.Vector2(
-      (k['KeyW'] || k['ArrowUp'] ? 1 : 0) - (k['KeyS'] || k['ArrowDown'] ? 1 : 0),
-      (k['KeyD'] || k['ArrowRight'] ? 1 : 0) - (k['KeyA'] || k['ArrowLeft'] ? 1 : 0),
-    );
+    // No walking while typing in a panel, even if a key is somehow still held.
+    const move = isTyping()
+      ? new THREE.Vector2(0, 0)
+      : new THREE.Vector2(
+          (k['KeyW'] || k['ArrowUp'] ? 1 : 0) - (k['KeyS'] || k['ArrowDown'] ? 1 : 0),
+          (k['KeyD'] || k['ArrowRight'] ? 1 : 0) - (k['KeyA'] || k['ArrowLeft'] ? 1 : 0),
+        );
 
     if (move.lengthSq() > 0) {
       move.normalize();
