@@ -52,6 +52,7 @@ plan); add `--write` so they can actually create/edit files.
 | `--bash` | Also allow shell commands (with `--write`). Off by default. |
 | `--read-only` | Force explore-only (no file changes). |
 | `--workdir <dir>` | Where agents operate (default: current directory). Use a fresh folder for build tasks. |
+| `--isolate` / `--no-isolate` | Per-agent git worktree isolation. Default: on for multi-agent `--write`. |
 | `--model <id>` | e.g. `--model opus`. Omit to use your Claude default — **you're not limited to Sonnet**. |
 | `--goal "…"` | Skip the prompt. |
 | `--mock` | Scripted demo team, no auth/cost. |
@@ -59,6 +60,15 @@ plan); add `--write` so they can actually create/edit files.
 
 > **Tip:** to actually build a project, run in a fresh directory with `--write`:
 > `cd ~/projects/new-site && offage --write`
+
+### Multi-agent isolation (git worktrees)
+
+When Claude picks a team of 2+ agents and `--write` is on, each agent works in its **own git
+worktree on its own branch**, so concurrent agents never clobber the same file. When an agent
+finishes, its branch is committed and **merged back into your working directory** automatically
+(the workdir is `git init`-ed if needed). If two agents change the same file in conflicting
+ways, the merge is left on that agent's `offage/<name>-N` branch for you to resolve, and a
+notice is shown. Disable with `--no-isolate`.
 
 ## Other ways to run
 

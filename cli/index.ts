@@ -165,12 +165,22 @@ async function main() {
   const disallowedTools = [...(canWrite ? [] : WRITE), ...(canBash ? [] : ['Bash'])];
 
   const roster = rosterFromPlan(plan);
+
+  // Isolate concurrent writers in their own git worktrees so they can't collide.
+  // Default on for multi-agent --write builds; --isolate / --no-isolate to force.
+  const isolate = has('--isolate')
+    ? true
+    : has('--no-isolate')
+      ? false
+      : !MOCK && canWrite && roster.length > 1;
+
   const runConfig: OffageConfig = {
     ...cfg,
     provider: MOCK ? 'mock' : 'claude-agent-sdk',
     agents: roster,
     allowedTools,
     disallowedTools,
+    isolate,
     concurrency: Math.max(roster.length, cfg.concurrency),
   };
 
@@ -188,6 +198,10 @@ async function main() {
         ? `  ${c.yellow('⚠ agents can create & edit files' + (has('--bash') ? ' and run commands' : '') + ' in this directory')}`
         : `  ${c.dim('read-only: agents will explore & plan but not write files. Re-run with --write to let them build.')}`,
     );
+    if (isolate)
+      console.log(
+        `  ${c.dim('⎇ isolation on: each agent works on its own git branch, merged into the workdir when done')}`,
+      );
   }
   console.log(
     `  ${c.bold('Enter your office:')} ${c.cyan(link)}` +

@@ -24,6 +24,8 @@ export interface AgentRuntime {
     emit: (e: RuntimeEvent) => void,
     controller: AbortController,
   ): Promise<void>;
+  /** Optional teardown (e.g. remove leftover git worktrees) on shutdown. */
+  cleanup?(): Promise<void>;
 }
 
 export function firstLine(text: string, max = 80): string {

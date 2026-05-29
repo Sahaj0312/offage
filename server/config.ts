@@ -24,6 +24,8 @@ export interface OffageConfig {
   allowedTools: string[];
   /** tools to hard-block (enforced even under bypassPermissions) */
   disallowedTools?: string[];
+  /** run each agent in its own git worktree + branch, merged back on completion */
+  isolate?: boolean;
   /** how many agents may run concurrently */
   concurrency: number;
   maxTurns: number;
@@ -92,6 +94,7 @@ export function loadConfig(explicitPath?: string): { config: OffageConfig; sourc
     model: fileCfg.model ?? DEFAULTS.model,
     allowedTools: fileCfg.allowedTools ?? DEFAULTS.allowedTools,
     disallowedTools: fileCfg.disallowedTools ?? DEFAULTS.disallowedTools,
+    isolate: fileCfg.isolate ?? DEFAULTS.isolate,
     concurrency: fileCfg.concurrency ?? DEFAULTS.concurrency,
     maxTurns: fileCfg.maxTurns ?? DEFAULTS.maxTurns,
     agents,

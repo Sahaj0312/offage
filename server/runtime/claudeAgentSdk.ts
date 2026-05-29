@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig, OffageConfig } from '../config';
+import { WorktreeManager, type Worktree } from '../worktree';
 import { firstLine, type AgentRuntime, type RuntimeEvent } from './types';
 
 /** Turn a tool call into a readable one-liner, e.g. `tool: Write src/index.html`. */
@@ -22,7 +23,20 @@ function toolSummary(name: string, input: unknown): string {
  */
 export class ClaudeAgentSdkRuntime implements AgentRuntime {
   readonly name = 'claude-agent-sdk';
+  private wtPromise?: Promise<WorktreeManager | null>;
   constructor(private cfg: OffageConfig) {}
+
+  /** Lazily create one WorktreeManager for the whole session (null if disabled). */
+  private worktrees(): Promise<WorktreeManager | null> {
+    if (!this.cfg.isolate) return Promise.resolve(null);
+    if (!this.wtPromise) this.wtPromise = WorktreeManager.create(this.cfg.workdir, String(process.pid));
+    return this.wtPromise;
+  }
+
+  async cleanup() {
+    const mgr = this.wtPromise ? await this.wtPromise : null;
+    if (mgr) await mgr.cleanup();
+  }
 
   async run(
     agent: AgentConfig,
@@ -34,12 +48,28 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     const allowed = new Set(allowedTools);
     emit({ status: 'thinking', task, progress: 0, appendOutput: `> ${task}` });
 
+    // Isolated worktree per agent (when enabled and git is available).
+    const mgr = await this.worktrees();
+    let wt: Worktree | null = null;
+    let cwd = this.cfg.workdir;
+    if (mgr) {
+      try {
+        wt = await mgr.acquire(agent.name);
+        cwd = wt.path;
+        emit({ appendOutput: `> isolated workspace · branch ${wt.branch}` });
+      } catch (e) {
+        emit({ appendOutput: `> (isolation unavailable: ${(e as Error).message})` });
+      }
+    }
+
     let progress = 0;
+    let outcome: { status: 'done' | 'error'; lines: string[] } | null = null;
+    let completed = false;
     try {
       const stream = query({
         prompt: task,
         options: {
-          cwd: this.cfg.workdir,
+          cwd,
           allowedTools,
           ...(this.cfg.disallowedTools?.length ? { disallowedTools: this.cfg.disallowedTools } : {}),
           maxTurns: this.cfg.maxTurns,
@@ -77,27 +107,42 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
           progress = Math.min(0.9, progress + 0.12);
           emit({ status: 'working', progress, ...(lines.length ? { appendOutput: lines } : {}) });
         } else if (msg.type === 'result') {
-          if (msg.is_error || msg.subtype !== 'success') {
-            emit({
-              status: 'error',
-              progress: 1,
-              appendOutput: `> ERROR: ${msg.subtype ?? 'failed'}`,
-            });
-          } else {
-            emit({
-              status: 'done',
-              progress: 1,
-              appendOutput: ['> ' + firstLine(msg.result || 'complete'), '> task complete ✓'],
-            });
-          }
+          outcome =
+            msg.is_error || msg.subtype !== 'success'
+              ? { status: 'error', lines: [`> ERROR: ${msg.subtype ?? 'failed'}`] }
+              : {
+                  status: 'done',
+                  lines: ['> ' + firstLine(msg.result || 'complete'), '> task complete ✓'],
+                };
         }
       }
+      completed = true;
     } catch (err) {
-      emit({
-        status: 'error',
-        progress: 1,
-        appendOutput: `> ERROR: ${(err as Error).message}`,
-      });
+      outcome = { status: 'error', lines: [`> ERROR: ${(err as Error).message}`] };
     }
+
+    // Aborted before finishing (re-tasked or shut down mid-run): drop the isolated
+    // work and leave state to whatever assignment caused the abort.
+    if (controller.signal.aborted && !completed) {
+      if (mgr && wt) await mgr.discard(wt).catch(() => {});
+      return;
+    }
+
+    // Merge the agent's isolated work back FIRST, then report the terminal status —
+    // so a 'done' status always means the work is already merged (no shutdown race).
+    const lines = [...(outcome?.lines ?? [])];
+    if (mgr && wt) {
+      try {
+        const res = await mgr.finalize(wt, `offage: ${agent.name} — ${firstLine(task, 60)}`);
+        lines.push(
+          res.conflict
+            ? `> ⚠ merge conflict — work kept on branch ${res.branch}`
+            : `> merged into ${mgr.base}`,
+        );
+      } catch (e) {
+        lines.push(`> (merge failed: ${(e as Error).message})`);
+      }
+    }
+    emit({ status: outcome?.status ?? 'done', progress: 1, appendOutput: lines });
   }
 }

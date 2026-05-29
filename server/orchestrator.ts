@@ -89,6 +89,9 @@ export class TaskOrchestrator extends BaseOrchestrator {
   }
 
   stop() {
+    // Abort only still-running agents; completed agents finish their merge. We do
+    // NOT call runtime.cleanup() here — it could race an in-flight merge. Each
+    // agent removes its own worktree in finalize; leftovers are pruned next run.
     for (const c of this.controllers.values()) c.abort();
     this.controllers.clear();
     this.running.clear();
