@@ -1,0 +1,16 @@
+{
+  "provider": "claude-agent-sdk",
+  "workdir": "~/projects/your-repo",
+  "model": "claude-sonnet-4-6",
+  "allowedTools": ["Read", "Grep", "Glob", "WebSearch", "WebFetch"],
+  "concurrency": 3,
+  "maxTurns": 12,
+  "agents": [
+    { "name": "Scout", "role": "Research & retrieval", "deskId": "d1", "systemPrompt": "You are a fast codebase researcher. Be concise." },
+    { "name": "Drafter", "role": "Writes first-pass code", "deskId": "d2" },
+    { "name": "Critic", "role": "Reviews & refutes", "deskId": "d3" },
+    { "name": "Wrangler", "role": "Data extraction", "deskId": "d4" },
+    { "name": "Tester", "role": "Runs & verifies", "deskId": "d5" },
+    { "name": "Synth", "role": "Synthesizes results", "deskId": "d6" }
+  ]
+}

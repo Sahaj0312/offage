@@ -11,7 +11,7 @@ import { ControlsHint } from './hud/ControlsHint';
 import { InfoPanel } from './hud/InfoPanel';
 import { Whiteboard } from './hud/Whiteboard';
 import { useStore } from './store/useStore';
-import { MockAgentSource } from './agents/MockAgentSource';
+import { createAgentSource } from './agents/createAgentSource';
 
 export default function App() {
   const controlsRef = useRef<PLC | null>(null);
@@ -24,7 +24,7 @@ export default function App() {
 
   // --- wire the mock agent source into the store (swap for LiveAgentSource later) ---
   useEffect(() => {
-    const source = new MockAgentSource();
+    const source = createAgentSource();
     setSource(source);
     const unsub = source.subscribe((agents) => setAgents(agents));
     source.start();

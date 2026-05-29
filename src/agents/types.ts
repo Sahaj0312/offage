@@ -1,20 +1,13 @@
-export type AgentStatus = 'idle' | 'thinking' | 'working' | 'done' | 'error';
+// Re-export the canonical model so the whole frontend keeps importing from here,
+// while the single source of truth lives in shared/ (used by the server too).
+export type { Agent, AgentStatus } from '../../shared/agent';
 
-export interface Agent {
-  id: string;
-  name: string;
-  role: string;
-  status: AgentStatus;
-  task: string | null;
-  progress: number; // 0..1
-  output: string[]; // recent log/output lines, newest last
-  deskId: string;
-}
+import type { Agent } from '../../shared/agent';
 
 /**
  * The single contract the entire 3D scene reads from. v1 ships MockAgentSource;
- * a future LiveAgentSource (WebSocket -> real orchestrator) implements the same
- * interface and drops in with zero scene changes.
+ * WebSocketAgentSource talks to the local orchestrator over the same interface,
+ * so swapping them is a one-line change with zero scene changes.
  */
 export interface AgentSource {
   getAgents(): Agent[];

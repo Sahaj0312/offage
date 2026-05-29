@@ -3,25 +3,37 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "offage": "bin/offage.mjs"
+  },
   "scripts": {
     "dev": "vite",
+    "server": "tsx server/index.ts",
+    "dev:all": "concurrently -n ui,server -c cyan,magenta \"vite\" \"tsx server/index.ts\"",
+    "serve": "npm run build && tsx server/index.ts --serve-dist",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.154",
     "@react-three/drei": "^9.114.0",
     "@react-three/fiber": "^8.17.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
+    "ws": "^8.21.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.169.0",
+    "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.3",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
   }
