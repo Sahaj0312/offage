@@ -15,6 +15,10 @@ function idx(id: string, salt: number, mod: number): number {
   return h % mod;
 }
 
+// Hand rest height, measured inside the arm group (torso y 0.55 + arm y 0.38),
+// so the hands land on the ~0.8-high desk: 0.8 - 0.55 - 0.38 = -0.13.
+const HAND_Y = -0.13;
+
 export interface CharacterProps {
   id: string;
   active: boolean;
@@ -53,9 +57,9 @@ export function Character({ id, active, attention }: CharacterProps) {
       head.current.rotation.y = Math.sin(time * 0.35) * 0.3 + Math.sin(time * 0.11) * 0.15;
       head.current.rotation.x = Math.sin(time * 0.9) * 0.03;
     }
-    // typing taps when active
-    if (active && lHand.current) lHand.current.position.y = 0.8 + Math.max(0, Math.sin(time * 13)) * 0.04;
-    if (active && rHand.current && !attention) rHand.current.position.y = 0.8 + Math.max(0, Math.sin(time * 13 + 1.7)) * 0.04;
+    // typing taps when active — hands rest on the desk (HAND_Y) and tap upward
+    if (active && lHand.current) lHand.current.position.y = HAND_Y + Math.max(0, Math.sin(time * 13)) * 0.04;
+    if (active && rHand.current && !attention) rHand.current.position.y = HAND_Y + Math.max(0, Math.sin(time * 13 + 1.7)) * 0.04;
     // attention: the right arm is posed up; swing it side-to-side to wave
     if (attention && rArm.current) rArm.current.rotation.z = Math.sin(time * 8) * 0.4;
   });
@@ -153,7 +157,7 @@ export function Character({ id, active, attention }: CharacterProps) {
             <capsuleGeometry args={[0.075, 0.34, 6, 12]} />
             {shirtMat()}
           </mesh>
-          <group ref={lHand} position={[-0.05, 0.8 - 0.55, -0.42]}>
+          <group ref={lHand} position={[-0.05, HAND_Y, -0.42]}>
             <mesh castShadow scale={[1, 0.7, 1.2]}>
               <sphereGeometry args={[0.1, 14, 14]} />
               {skinMat()}
@@ -180,7 +184,7 @@ export function Character({ id, active, attention }: CharacterProps) {
                 <capsuleGeometry args={[0.075, 0.34, 6, 12]} />
                 {shirtMat()}
               </mesh>
-              <group ref={rHand} position={[0.05, 0.8 - 0.55, -0.42]}>
+              <group ref={rHand} position={[0.05, HAND_Y, -0.42]}>
                 <mesh castShadow scale={[1, 0.7, 1.2]}>
                   <sphereGeometry args={[0.1, 14, 14]} />
                   {skinMat()}
