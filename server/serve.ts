@@ -9,6 +9,7 @@ import type { ClientMessage, ServerMessage } from '../shared/agent';
 import type { OffageConfig } from './config';
 import { MockOrchestrator, TaskOrchestrator, type Orchestrator } from './orchestrator';
 import { ClaudeAgentSdkRuntime } from './runtime/claudeAgentSdk';
+import { CodexRuntime } from './runtime/codex';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const DIST = resolve(__dirname, '../dist');
@@ -28,6 +29,9 @@ const MIME: Record<string, string> = {
 export function makeOrchestrator(config: OffageConfig): Orchestrator {
   if (config.provider === 'claude-agent-sdk') {
     return new TaskOrchestrator(config.agents, new ClaudeAgentSdkRuntime(config), config.concurrency);
+  }
+  if (config.provider === 'codex') {
+    return new TaskOrchestrator(config.agents, new CodexRuntime(config), config.concurrency);
   }
   return new MockOrchestrator(config.agents);
 }

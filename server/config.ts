@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve, join } from 'node:path';
 
-export type ProviderKind = 'claude-agent-sdk' | 'mock';
+export type ProviderKind = 'claude-agent-sdk' | 'codex' | 'mock';
 
 export interface AgentConfig {
   id: string;

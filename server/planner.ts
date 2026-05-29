@@ -1,7 +1,31 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { OffageConfig } from './config';
+import type { Brain } from './brain/types';
 
 export const MAX_AGENTS = 6; // matches the desk slots in the scene layout
+
+// Strict JSON schema for the plan (Codex requires additionalProperties:false and
+// every key listed in `required`; Claude ignores it and parses the text).
+export const PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    summary: { type: 'string' },
+    agents: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' },
+          role: { type: 'string' },
+          systemPrompt: { type: 'string' },
+          task: { type: 'string' },
+        },
+        required: ['name', 'role', 'systemPrompt', 'task'],
+      },
+    },
+  },
+  required: ['summary', 'agents'],
+};
 
 export interface PlannedAgent {
   name: string;
@@ -78,31 +102,15 @@ function parsePlan(text: string, goal: string): TeamPlan {
   };
 }
 
-/** Ask Claude to design a team of agents for the goal. */
-export async function planTeam(
-  goal: string,
-  config: OffageConfig,
-  caps: Capabilities,
-): Promise<TeamPlan> {
-  const stream = query({
-    prompt: `GOAL: ${goal}`,
-    options: {
-      systemPrompt: PLANNER_SYSTEM.replace('{{CAPABILITIES}}', capabilityNote(caps)),
-      allowedTools: [],
-      maxTurns: 1,
-      ...(config.model ? { model: config.model } : {}),
-    },
-  });
-
+/** Ask the brain to design a team of agents for the goal. */
+export async function planTeam(brain: Brain, goal: string, caps: Capabilities): Promise<TeamPlan> {
   let text = '';
   try {
-    for await (const msg of stream) {
-      if (msg.type === 'assistant') {
-        for (const block of msg.message.content) if (block.type === 'text') text += block.text;
-      } else if (msg.type === 'result' && msg.subtype === 'success' && msg.result) {
-        text = msg.result;
-      }
-    }
+    text = await brain.complete(
+      PLANNER_SYSTEM.replace('{{CAPABILITIES}}', capabilityNote(caps)),
+      `GOAL: ${goal}`,
+      PLAN_SCHEMA,
+    );
   } catch {
     text = ''; // fall back to a single-agent plan below
   }

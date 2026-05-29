@@ -1,6 +1,24 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { OffageConfig } from './config';
+import type { Brain } from './brain/types';
 import { capabilityNote, type Capabilities } from './planner';
+
+// Strict JSON schema for a Manager reply (Codex native output; Claude parses text).
+export const REPLY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    reply: { type: 'string' },
+    assignments: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { agent: { type: 'string' }, task: { type: 'string' } },
+        required: ['agent', 'task'],
+      },
+    },
+  },
+  required: ['reply', 'assignments'],
+};
 
 export interface Assignment {
   agent: string; // an existing team member's name
@@ -52,7 +70,7 @@ export class Manager {
   private history: { who: 'OPERATOR' | 'MANAGER'; text: string }[] = [];
 
   constructor(
-    private cfg: OffageConfig,
+    private brain: Brain,
     private goal: string,
     private team: TeamMember[],
     private caps: Capabilities,
@@ -85,33 +103,11 @@ Rules:
     return (transcript ? transcript + '\n\n' : '') + instruction;
   }
 
-  /** One Manager inference. Returns '' on failure so the caller can retry. */
-  private async runOnce(instruction: string): Promise<string> {
-    let text = '';
-    const stream = query({
-      prompt: this.prompt(instruction),
-      options: {
-        systemPrompt: this.system(),
-        allowedTools: [],
-        maxTurns: 8, // headroom for thinking + transient rate-limit retries
-        ...(this.cfg.model ? { model: this.cfg.model } : {}),
-      },
-    });
-    for await (const msg of stream) {
-      if (msg.type === 'assistant') {
-        for (const b of msg.message.content) if (b.type === 'text') text += b.text;
-      } else if (msg.type === 'result' && msg.subtype === 'success' && msg.result) {
-        text = msg.result;
-      }
-    }
-    return text;
-  }
-
   private async ask(instruction: string, recordOperator: string): Promise<ManagerReply> {
     let text = '';
     for (let attempt = 0; attempt < 2 && !text.trim(); attempt++) {
       try {
-        text = await this.runOnce(instruction);
+        text = await this.brain.complete(this.system(), this.prompt(instruction), REPLY_SCHEMA);
       } catch (err) {
         if (attempt === 1) text = `(I had trouble composing a reply: ${(err as Error).message})`;
       }

@@ -6,9 +6,14 @@ one `AgentStatus`), get close to anyone to inspect or assign a task, and open th
 orchestration board to see the whole fleet at a glance.
 
 Offage is **local-first**: you run it on your machine and it drives the agent tools you've
-*already authenticated* (Claude Agent SDK uses the same auth as `claude` — your subscription
-login or `ANTHROPIC_API_KEY`). Offage never sees your credentials. The 3D office is just the
-render + control surface over a small local orchestrator.
+*already authenticated*. It runs fully on **Claude** (Claude Agent SDK — same auth as `claude`)
+**or Codex** (OpenAI Codex SDK — same auth as `codex`); pick with `--provider`. Offage never
+sees your credentials. The 3D office is just the render + control surface over a small local
+orchestrator.
+
+The entire pipeline — the team **planner**, the **Manager** (lead agent), and the **workers** —
+runs on your chosen provider, behind a small `Brain` + `AgentRuntime` seam, so the 3D office,
+worktree isolation, Manager loop, and autonomous mode are identical either way.
 
 ## The `offage` command (recommended)
 
@@ -56,7 +61,8 @@ plan); add `--write` so they can actually create/edit files.
 | `--auto` | Autonomous: the Manager keeps delegating rounds until the goal is met, then reports. |
 | `--max-rounds <n>` | Cap on autonomous rounds (default 6). |
 | `--max-turns <n>` | Per-agent turn budget (default 30). Raise for big builds. |
-| `--model <id>` | e.g. `--model opus`. Omit to use your Claude default — **you're not limited to Sonnet**. |
+| `--provider claude\|codex` | Which backend runs everything. Default: Claude (or `provider` in config). |
+| `--model <id>` | e.g. `--model opus` (Claude) or `--model gpt-5-codex` (Codex). Omit for the provider default. |
 | `--goal "…"` | Skip the prompt. |
 | `--mock` | Scripted demo team, no auth/cost. |
 | `--port <n>` · `--no-open` · `--config <path>` | Server port · don't auto-open browser · config file. |
@@ -147,22 +153,26 @@ CLI flags: `--config <path>`, `--port <n>`, `--serve-dist`, `--no-open`.
   │  └ WebSocketAgentSource ──┼── ws ───────────┼──▶  ├ MockOrchestrator   (scripted)
   │       (falls back to mock if no server)     │     └ TaskOrchestrator   (task-driven)
   │            │ subscribe()                    │          └ AgentRuntime  server/runtime/
-  │            ▼                                │              └ ClaudeAgentSdkRuntime
-  │      zustand store  src/store/useStore      │                 (uses your claude auth)
-  │            │ (one-way)                      │  config          server/config.ts
-  │      ┌─────┴─────┐                          │   (offage.config.json / ~/.offage)
-  │      ▼           ▼                          │
+  │            ▼                                │             ├ ClaudeAgentSdkRuntime
+  │      zustand store  src/store/useStore      │             └ CodexRuntime
+  │            │ (one-way)                      │                (+ runIsolated worktree helper)
+  │      ┌─────┴─────┐                          │  config          server/config.ts
+  │      ▼           ▼                          │   (offage.config.json / ~/.offage)
   │  R3F scene    DOM HUD                       │
   │  src/scene/   src/hud/                      │
   └─────────────────────────────────────────────┘
 
-  cli/index.ts ─ banner → auth probe (server/auth.ts) → "what to build?" →
-                 planner (server/planner.ts asks Claude for a 1–6 agent roster) →
-                 startServer() with that roster → auto-assigns each agent its first task
+  cli/index.ts ─ banner → Brain.probeAuth() → "what to build?" →
+                 planTeam(Brain) for a 1–6 agent roster → startServer() with that roster →
+                 Manager + Coordinator drive rounds → auto-assigns each agent its first task
+
+  Brain (server/brain/)  — planner + Manager + auth, per provider:
+    ├ ClaudeBrain   (Claude Agent SDK)
+    └ CodexBrain    (OpenAI Codex SDK, native outputSchema)
 ```
 
-The roster is dynamic: Claude decides how many agents the goal needs (capped at the 6 desk
-slots) and the office renders exactly that many desks — only staffed desks block movement.
+The roster is dynamic: the provider decides how many agents the goal needs (capped at the 6
+desk slots) and the office renders exactly that many desks — only staffed desks block movement.
 
 The 3D scene only ever reads from an `AgentSource`. `WebSocketAgentSource` and
 `MockAgentSource` implement the same interface, so the scene is identical whether data is
@@ -174,9 +184,13 @@ monitor, status bubble, info panel, and orchestration board alike.
 
 ### Adding another provider
 
-Implement one `AgentRuntime` (`server/runtime/types.ts`) — e.g. a Codex CLI or
-OpenAI adapter — and select it in `server/index.ts` by `config.provider`. No frontend or
-scene changes.
+Two small seams, both provider-agnostic above them:
+- **Workers:** implement one `AgentRuntime` (`server/runtime/types.ts`) — reuse `runIsolated`
+  for worktree handling — and select it in `makeOrchestrator` (`server/serve.ts`).
+- **Brain (planner/Manager/auth):** implement one `Brain` (`server/brain/types.ts`).
+
+Wire both to a new `provider` value. No frontend or scene changes. Claude and Codex are the
+two reference implementations.
 
 ## Assets
 

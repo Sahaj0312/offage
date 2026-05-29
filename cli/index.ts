@@ -5,12 +5,15 @@ import { resolve } from 'node:path';
 import { DEFAULT_WS_PORT } from '../shared/agent';
 import type { AgentConfig, OffageConfig } from '../server/config';
 import { loadConfig } from '../server/config';
-import { probeAuth } from '../server/auth';
+import type { ProviderKind } from '../server/config';
 import { planTeam, type TeamPlan } from '../server/planner';
 import { makeOrchestrator, startServer } from '../server/serve';
 import type { Orchestrator } from '../server/orchestrator';
 import { Manager } from '../server/manager';
 import { Coordinator } from '../server/coordinator';
+import type { Brain } from '../server/brain/types';
+import { ClaudeBrain } from '../server/brain/claude';
+import { CodexBrain } from '../server/brain/codex';
 import type { ChatRole } from '../shared/agent';
 import { banner, c, hyperlink, spinner } from './ui';
 
@@ -44,28 +47,31 @@ async function getGoal(): Promise<string> {
   return answer.trim();
 }
 
-async function ensureAuth(config: OffageConfig): Promise<boolean> {
-  const sp = spinner('Checking your Claude login…');
-  let info = await probeAuth(config.model);
+async function ensureAuth(brain: Brain): Promise<boolean> {
+  const who = brain.provider === 'codex' ? 'Codex' : 'Claude';
+  const loginHint =
+    brain.provider === 'codex'
+      ? `Log in by running ${c.bold('codex login')}, or set ${c.bold('CODEX_API_KEY')}.`
+      : `Log in by running ${c.bold('claude')} in another terminal, or set ${c.bold('ANTHROPIC_API_KEY')}.`;
+
+  const sp = spinner(`Checking your ${who} login…`);
+  let info = await brain.probeAuth();
   if (info) {
-    sp.succeed(`Logged in — Claude Code v${info.version} · model ${c.bold(info.model)}`);
+    sp.succeed(`Logged in — ${info.label}`);
     return true;
   }
-  sp.fail('Not logged in to Claude.');
-  console.log(
-    `\n  ${c.yellow('Offage uses your Claude login (it never sees your credentials).')}` +
-      `\n  Log in by running ${c.bold('claude')} in another terminal, or set ${c.bold('ANTHROPIC_API_KEY')}.\n`,
-  );
+  sp.fail(`Not logged in to ${who}.`);
+  console.log(`\n  ${c.yellow(`Offage uses your ${who} login (it never sees your credentials).`)}\n  ${loginHint}\n`);
   const rl = readline.createInterface({ input: stdin, output: stdout });
   await rl.question(c.dim('  Press Enter to retry once you have logged in… '));
   rl.close();
   const sp2 = spinner('Re-checking…');
-  info = await probeAuth(config.model);
+  info = await brain.probeAuth();
   if (info) {
-    sp2.succeed(`Logged in — Claude Code v${info.version}, model ${info.model}`);
+    sp2.succeed(`Logged in — ${info.label}`);
     return true;
   }
-  sp2.fail('Still not logged in. Exiting.');
+  sp2.fail(`Still not logged in. Exiting.`);
   return false;
 }
 
@@ -123,12 +129,30 @@ function printTeam(plan: TeamPlan) {
 async function main() {
   console.log(banner());
   const { config } = loadConfig(arg('--config'));
+
+  // Provider: --provider codex|claude wins, else config, else Claude.
+  const providerArg = (arg('--provider') ?? '').toLowerCase();
+  const provider: ProviderKind = MOCK
+    ? 'mock'
+    : providerArg === 'codex'
+      ? 'codex'
+      : providerArg === 'claude'
+        ? 'claude-agent-sdk'
+        : config.provider === 'codex'
+          ? 'codex'
+          : 'claude-agent-sdk';
+  const isCodex = provider === 'codex';
+
   const cfg: OffageConfig = {
     ...config,
+    provider,
     model: arg('--model') ?? config.model,
     workdir: arg('--workdir') ? resolve(process.cwd(), arg('--workdir') as string) : config.workdir,
     maxTurns: Number(arg('--max-turns') ?? config.maxTurns),
   };
+
+  // The reasoning brain (planner / Manager / auth) for the chosen provider.
+  const brain: Brain = isCodex ? new CodexBrain(cfg.model) : new ClaudeBrain(cfg.model);
 
   // Agents spawn with cwd = workdir; a missing dir makes the SDK fail to launch.
   // Create it so `--workdir ~/new-project` just works.
@@ -141,7 +165,7 @@ async function main() {
     }
   }
 
-  if (!MOCK && !(await ensureAuth(cfg))) process.exit(1);
+  if (!MOCK && !(await ensureAuth(brain))) process.exit(1);
 
   const goal = await getGoal();
   if (!goal) {
@@ -165,10 +189,11 @@ async function main() {
   if (MOCK) {
     plan = MOCK_PLAN;
   } else {
-    const sp = spinner('Claude is assembling your team…');
+    const who = isCodex ? 'Codex' : 'Claude';
+    const sp = spinner(`${who} is assembling your team…`);
     try {
-      plan = await planTeam(goal, cfg, caps);
-      sp.succeed(`Claude assembled a team of ${c.bold(String(plan.agents.length))}.`);
+      plan = await planTeam(brain, goal, caps);
+      sp.succeed(`${who} assembled a team of ${c.bold(String(plan.agents.length))}.`);
     } catch (err) {
       sp.fail(`Planning failed: ${(err as Error).message}`);
       process.exit(1);
@@ -209,7 +234,7 @@ async function main() {
   const maxRounds = Number(arg('--max-rounds') ?? 6);
   let coordinator: Coordinator | null = null;
   if (useManager) {
-    const manager = new Manager(cfg, goal, plan.agents.map((a) => ({ name: a.name, role: a.role })), caps);
+    const manager = new Manager(brain, goal, plan.agents.map((a) => ({ name: a.name, role: a.role })), caps);
     const nameToId = new Map(workers.map((w) => [w.name.toLowerCase(), w.id]));
     coordinator = new Coordinator(orchestrator, manager, nameToId, autonomous, maxRounds);
   }
