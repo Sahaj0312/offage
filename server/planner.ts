@@ -15,9 +15,28 @@ export interface TeamPlan {
   agents: PlannedAgent[];
 }
 
+export interface Capabilities {
+  write: boolean;
+  bash: boolean;
+}
+
+/** A guidance line describing what agents can/can't do, for the planner & Manager. */
+export function capabilityNote(caps: Capabilities): string {
+  if (!caps.write) {
+    return 'Agents are READ-ONLY: they can read files and search the web, but CANNOT create or edit files, run shell commands, run/test code, install packages, or use git. Only assign research, analysis, or planning tasks — never tasks that produce or change files.';
+  }
+  if (!caps.bash) {
+    return 'Agents can read and CREATE/EDIT files, but CANNOT run shell commands, run or test code, install packages, start servers, or use git. Do NOT instruct them to run, build, test, install, serve, or commit/push — only to create and edit files. (To verify, they can re-read the files they wrote.)';
+  }
+  return 'Agents can read/write files AND run shell commands (build, test, install, git). They may run and verify their work.';
+}
+
 const PLANNER_SYSTEM = `You are the orchestration planner for "Offage", a 3D virtual office where each desk is an autonomous AI coding agent that works in the user's current project directory.
 
-Given a GOAL, design the smallest effective team of 1 to ${MAX_AGENTS} agents to accomplish it. Use ONE agent for simple or inherently sequential goals; use multiple ONLY when the work genuinely parallelizes (e.g. research vs. implementation vs. testing, or independent modules).
+CONSTRAINTS: {{CAPABILITIES}}
+Design tasks that fit strictly within these constraints — never ask an agent to do something it cannot do.
+
+Given a GOAL, design the smallest effective team of 1 to ${MAX_AGENTS} agents to accomplish it. Use ONE agent for simple or inherently sequential goals; use multiple ONLY when the work genuinely parallelizes (e.g. research vs. implementation vs. testing, or independent modules). Agents work in SEPARATE isolated copies and cannot see each other's files mid-round, so don't make one agent depend on another's output within the same plan.
 
 For each agent provide:
 - "name": a short, single-word handle (e.g. "Scout", "Drafter", "Tester")
@@ -60,11 +79,15 @@ function parsePlan(text: string, goal: string): TeamPlan {
 }
 
 /** Ask Claude to design a team of agents for the goal. */
-export async function planTeam(goal: string, config: OffageConfig): Promise<TeamPlan> {
+export async function planTeam(
+  goal: string,
+  config: OffageConfig,
+  caps: Capabilities,
+): Promise<TeamPlan> {
   const stream = query({
     prompt: `GOAL: ${goal}`,
     options: {
-      systemPrompt: PLANNER_SYSTEM,
+      systemPrompt: PLANNER_SYSTEM.replace('{{CAPABILITIES}}', capabilityNote(caps)),
       allowedTools: [],
       maxTurns: 1,
       ...(config.model ? { model: config.model } : {}),
@@ -72,12 +95,16 @@ export async function planTeam(goal: string, config: OffageConfig): Promise<Team
   });
 
   let text = '';
-  for await (const msg of stream) {
-    if (msg.type === 'assistant') {
-      for (const block of msg.message.content) if (block.type === 'text') text += block.text;
-    } else if (msg.type === 'result' && msg.subtype === 'success' && msg.result) {
-      text = msg.result;
+  try {
+    for await (const msg of stream) {
+      if (msg.type === 'assistant') {
+        for (const block of msg.message.content) if (block.type === 'text') text += block.text;
+      } else if (msg.type === 'result' && msg.subtype === 'success' && msg.result) {
+        text = msg.result;
+      }
     }
+  } catch {
+    text = ''; // fall back to a single-agent plan below
   }
 
   const plan = parsePlan(text, goal);

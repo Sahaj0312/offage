@@ -1,5 +1,6 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { OffageConfig } from './config';
+import { capabilityNote, type Capabilities } from './planner';
 
 export interface Assignment {
   agent: string; // an existing team member's name
@@ -54,6 +55,7 @@ export class Manager {
     private cfg: OffageConfig,
     private goal: string,
     private team: TeamMember[],
+    private caps: Capabilities,
   ) {}
 
   private system(): string {
@@ -65,6 +67,9 @@ Original goal: ${this.goal}
 
 Your team:
 ${roster}
+
+What your workers can do: ${capabilityNote(this.caps)}
+Only assign tasks that fit those constraints.
 
 Respond with ONLY a JSON object, no prose, no code fences:
 {"reply": "<a concise, conversational message to the operator, first person>", "assignments": [{"agent": "<one of: ${names}>", "task": "<concrete instruction for that worker>"}]}
@@ -80,22 +85,35 @@ Rules:
     return (transcript ? transcript + '\n\n' : '') + instruction;
   }
 
-  private async ask(instruction: string, recordOperator: string): Promise<ManagerReply> {
+  /** One Manager inference. Returns '' on failure so the caller can retry. */
+  private async runOnce(instruction: string): Promise<string> {
+    let text = '';
     const stream = query({
       prompt: this.prompt(instruction),
       options: {
         systemPrompt: this.system(),
         allowedTools: [],
-        maxTurns: 1,
+        maxTurns: 8, // headroom for thinking + transient rate-limit retries
         ...(this.cfg.model ? { model: this.cfg.model } : {}),
       },
     });
-    let text = '';
     for await (const msg of stream) {
       if (msg.type === 'assistant') {
         for (const b of msg.message.content) if (b.type === 'text') text += b.text;
       } else if (msg.type === 'result' && msg.subtype === 'success' && msg.result) {
         text = msg.result;
+      }
+    }
+    return text;
+  }
+
+  private async ask(instruction: string, recordOperator: string): Promise<ManagerReply> {
+    let text = '';
+    for (let attempt = 0; attempt < 2 && !text.trim(); attempt++) {
+      try {
+        text = await this.runOnce(instruction);
+      } catch (err) {
+        if (attempt === 1) text = `(I had trouble composing a reply: ${(err as Error).message})`;
       }
     }
     const parsed = parseReply(text);

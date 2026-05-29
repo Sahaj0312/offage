@@ -30,6 +30,9 @@ export class Coordinator {
     private manager: Manager,
     /** worker name (lowercased) -> agent id */
     private nameToId: Map<string, string>,
+    /** when true, the Manager may auto-dispatch follow-up rounds until done */
+    private autonomous = false,
+    private maxRounds = 6,
   ) {}
 
   onChat(cb: (role: ChatRole, text: string) => void) {
@@ -80,18 +83,33 @@ export class Coordinator {
       .map((a) => ({ name: a.name, status: a.status, summary: lastSummary(a.output) }));
   }
 
-  /** The initial team round was dispatched by the launcher; wait + synthesize. */
+  /**
+   * Wait for a round, synthesize it, and — in autonomous mode — keep dispatching
+   * follow-up rounds the Manager asks for until the goal is met or the cap is hit.
+   */
+  private async settle(ids: string[], round: number) {
+    await this.waitForRound(ids);
+    const synth = await this.manager.synthesize(this.collect(ids));
+    this.emit('manager', synth.reply);
+    if (this.autonomous && synth.assignments.length && round < this.maxRounds) {
+      this.emit('system', `Manager is continuing (round ${round + 1} of up to ${this.maxRounds})…`);
+      const next = this.dispatch(synth.assignments);
+      if (next.length) await this.settle(next, round + 1);
+    } else if (this.autonomous && synth.assignments.length) {
+      this.emit('system', `Reached the ${this.maxRounds}-round limit — pausing for you.`);
+    }
+  }
+
+  /** The initial team round was dispatched by the launcher; wait + synthesize (+ auto-continue). */
   async runInitialRound(ids: string[]) {
     this.busy = true;
     this.orch.post(MANAGER_ID, ['Manager: watching the team…'], 'thinking');
-    await this.waitForRound(ids);
-    const { reply } = await this.manager.synthesize(this.collect(ids));
-    this.emit('manager', reply);
+    await this.settle(ids, 1);
     this.orch.post(MANAGER_ID, [], 'idle');
     this.busy = false;
   }
 
-  /** Handle an operator message: plan -> delegate -> wait -> synthesize. */
+  /** Handle an operator message: plan -> delegate -> wait -> synthesize (+ auto-continue). */
   async userTurn(text: string) {
     if (this.busy) {
       this.emit('system', 'The team is still working — one moment.');
@@ -103,13 +121,7 @@ export class Coordinator {
       this.orch.post(MANAGER_ID, [], 'thinking');
       const plan = await this.manager.userTurn(text);
       if (plan.reply) this.emit('manager', plan.reply);
-
-      if (plan.assignments.length) {
-        const ids = this.dispatch(plan.assignments);
-        await this.waitForRound(ids);
-        const synth = await this.manager.synthesize(this.collect(ids));
-        this.emit('manager', synth.reply);
-      }
+      if (plan.assignments.length) await this.settle(this.dispatch(plan.assignments), 1);
     } finally {
       this.orch.post(MANAGER_ID, [], 'idle');
       this.busy = false;

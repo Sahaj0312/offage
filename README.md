@@ -53,6 +53,9 @@ plan); add `--write` so they can actually create/edit files.
 | `--read-only` | Force explore-only (no file changes). |
 | `--workdir <dir>` | Where agents operate (default: current directory). Use a fresh folder for build tasks. |
 | `--isolate` / `--no-isolate` | Per-agent git worktree isolation. Default: on for multi-agent `--write`. |
+| `--auto` | Autonomous: the Manager keeps delegating rounds until the goal is met, then reports. |
+| `--max-rounds <n>` | Cap on autonomous rounds (default 6). |
+| `--max-turns <n>` | Per-agent turn budget (default 30). Raise for big builds. |
 | `--model <id>` | e.g. `--model opus`. Omit to use your Claude default — **you're not limited to Sonnet**. |
 | `--goal "…"` | Skip the prompt. |
 | `--mock` | Scripted demo team, no auth/cost. |
@@ -73,6 +76,13 @@ with (like the main agent in Claude Code). After the team finishes a round, the 
   summarizes. `/quit` to exit.
 - **In the office:** walk up to the **Manager's desk** and press `E` to chat in a panel — same
   conversation, same delegation.
+- **Autonomous mode (`--auto`):** instead of one round per message, the Manager keeps delegating
+  follow-up rounds on its own until it judges the goal met (capped by `--max-rounds`), then reports
+  back and waits for you. Hands-off.
+
+Tasks are **capability-aware**: the planner and Manager are told what the team can do (read-only,
+`--write`, or `--write --bash`), so they never assign work the agents can't perform (e.g. they
+won't tell write-only agents to run tests or `git push`).
 
 ### Multi-agent isolation (git worktrees)
 

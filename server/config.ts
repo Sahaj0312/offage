@@ -52,7 +52,7 @@ const DEFAULTS: OffageConfig = {
   workdir: process.cwd(),
   allowedTools: READ_ONLY_TOOLS,
   concurrency: 3,
-  maxTurns: 12,
+  maxTurns: 30,
   agents: DEFAULT_AGENTS,
 };
 

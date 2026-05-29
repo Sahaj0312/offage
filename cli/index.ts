@@ -127,6 +127,7 @@ async function main() {
     ...config,
     model: arg('--model') ?? config.model,
     workdir: arg('--workdir') ? resolve(process.cwd(), arg('--workdir') as string) : config.workdir,
+    maxTurns: Number(arg('--max-turns') ?? config.maxTurns),
   };
 
   // Agents spawn with cwd = workdir; a missing dir makes the SDK fail to launch.
@@ -148,6 +149,17 @@ async function main() {
     process.exit(0);
   }
 
+  // Agent tool capabilities (computed before planning so tasks match what agents
+  // can actually do). bypassPermissions ignores the allowlist, so disallowedTools
+  // is what enforces these limits.
+  const READ = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'];
+  const WRITE = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+  const canWrite = (has('--write') || has('--build')) && !has('--read-only');
+  const canBash = canWrite && has('--bash');
+  const allowedTools = [...READ, ...(canWrite ? WRITE : []), ...(canBash ? ['Bash'] : [])];
+  const disallowedTools = [...(canWrite ? [] : WRITE), ...(canBash ? [] : ['Bash'])];
+  const caps = { write: canWrite, bash: canBash };
+
   // Plan the team.
   let plan: TeamPlan;
   if (MOCK) {
@@ -155,7 +167,7 @@ async function main() {
   } else {
     const sp = spinner('Claude is assembling your team…');
     try {
-      plan = await planTeam(goal, cfg);
+      plan = await planTeam(goal, cfg, caps);
       sp.succeed(`Claude assembled a team of ${c.bold(String(plan.agents.length))}.`);
     } catch (err) {
       sp.fail(`Planning failed: ${(err as Error).message}`);
@@ -163,17 +175,6 @@ async function main() {
     }
   }
   printTeam(plan);
-
-  // Choose the agents' tool capabilities. Read-only by default is safe but can't
-  // build anything; --write lets them create/edit files, --bash adds shell.
-  // Because bypassPermissions ignores the allowlist, disallowedTools is what
-  // actually enforces these limits.
-  const READ = ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'];
-  const WRITE = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
-  const canWrite = (has('--write') || has('--build')) && !has('--read-only');
-  const canBash = canWrite && has('--bash');
-  const allowedTools = [...READ, ...(canWrite ? WRITE : []), ...(canBash ? ['Bash'] : [])];
-  const disallowedTools = [...(canWrite ? [] : WRITE), ...(canBash ? [] : ['Bash'])];
 
   const workers = rosterFromPlan(plan);
   const useManager = !MOCK;
@@ -204,11 +205,13 @@ async function main() {
 
   // Wire up the lead agent (Manager) + coordinator before serving, so in-world
   // chat messages can route straight to it.
+  const autonomous = has('--auto');
+  const maxRounds = Number(arg('--max-rounds') ?? 6);
   let coordinator: Coordinator | null = null;
   if (useManager) {
-    const manager = new Manager(cfg, goal, plan.agents.map((a) => ({ name: a.name, role: a.role })));
+    const manager = new Manager(cfg, goal, plan.agents.map((a) => ({ name: a.name, role: a.role })), caps);
     const nameToId = new Map(workers.map((w) => [w.name.toLowerCase(), w.id]));
-    coordinator = new Coordinator(orchestrator, manager, nameToId);
+    coordinator = new Coordinator(orchestrator, manager, nameToId, autonomous, maxRounds);
   }
 
   const sp = spinner('Loading your office…');
@@ -240,6 +243,8 @@ async function main() {
       console.log(
         `  ${c.dim('⎇ isolation on: each agent works on its own git branch, merged into the workdir when done')}`,
       );
+    if (autonomous)
+      console.log(`  ${c.dim(`↻ autonomous: the Manager keeps delegating until the goal is met (up to ${maxRounds} rounds)`)}`);
   }
   console.log(
     `  ${c.bold('Enter your office:')} ${c.cyan(link)}` +
