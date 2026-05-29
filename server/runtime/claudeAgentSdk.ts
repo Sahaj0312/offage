@@ -31,6 +31,7 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
     controller: AbortController,
   ) {
     const allowedTools = agent.allowedTools ?? this.cfg.allowedTools;
+    const allowed = new Set(allowedTools);
     emit({ status: 'thinking', task, progress: 0, appendOutput: `> ${task}` });
 
     let progress = 0;
@@ -40,14 +41,24 @@ export class ClaudeAgentSdkRuntime implements AgentRuntime {
         options: {
           cwd: this.cfg.workdir,
           allowedTools,
-          // disallowedTools is a hard block even under bypassPermissions, so it's
-          // what actually enforces read-only / no-shell modes without prompting.
           ...(this.cfg.disallowedTools?.length ? { disallowedTools: this.cfg.disallowedTools } : {}),
-          permissionMode: 'bypassPermissions',
           maxTurns: this.cfg.maxTurns,
           abortController: controller,
           ...(this.cfg.model ? { model: this.cfg.model } : {}),
-          ...(agent.systemPrompt ? { systemPrompt: agent.systemPrompt } : {}),
+          // Keep Claude Code's default prompt (so the agent knows its cwd, env, and
+          // how to use tools) and append this agent's role on top.
+          systemPrompt: { type: 'preset', preset: 'claude_code', append: agent.systemPrompt ?? '' },
+          // Enforce the toolset as a true allow-list: anything not permitted is
+          // denied here (no prompt, no hang). This catches shell-capable tools the
+          // agent might reach for (Bash, Monitor, …), not just the obvious ones.
+          permissionMode: 'default',
+          canUseTool: async (toolName: string, input: Record<string, unknown>) =>
+            allowed.has(toolName)
+              ? { behavior: 'allow', updatedInput: input }
+              : {
+                  behavior: 'deny',
+                  message: `Offage: the "${toolName}" tool is disabled in this office. Allowed tools: ${allowedTools.join(', ')}.`,
+                },
         },
       });
 
