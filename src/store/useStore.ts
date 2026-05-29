@@ -16,6 +16,8 @@ interface StoreState {
   whiteboardOpen: boolean;
   started: boolean;
   chat: ChatMessage[];
+  /** the Manager has something for you and you haven't opened its panel yet */
+  managerAttention: boolean;
 
   setSource: (s: AgentSource) => void;
   setAgents: (a: Agent[]) => void;
@@ -38,18 +40,31 @@ export const useStore = create<StoreState>((set, get) => ({
   whiteboardOpen: false,
   started: false,
   chat: [],
+  managerAttention: false,
 
   setSource: (s) => set({ source: s }),
   setAgents: (a) => set({ agents: a }),
   setFocused: (id) => {
     if (get().focusedAgentId !== id) set({ focusedAgentId: id });
   },
-  select: (id) => set({ selectedAgentId: id }),
+  select: (id) =>
+    set((s) => {
+      const ag = s.agents.find((a) => a.id === id);
+      // Opening the Manager's panel means you've seen its message.
+      return { selectedAgentId: id, ...(ag?.kind === 'manager' ? { managerAttention: false } : {}) };
+    }),
   toggleWhiteboard: () => set((s) => ({ whiteboardOpen: !s.whiteboardOpen })),
   setStarted: (v) => set({ started: v }),
   sendTask: (agentId, task) => get().source?.sendTask(agentId, task),
   sendMessage: (text) => get().source?.sendMessage(text),
-  pushChat: (role, text) => set((s) => ({ chat: [...s.chat, { role, text }].slice(-100) })),
+  pushChat: (role, text) =>
+    set((s) => {
+      const sel = s.agents.find((a) => a.id === s.selectedAgentId);
+      const managerOpen = sel?.kind === 'manager';
+      // A Manager message raises its hand — unless you're already reading its panel.
+      const managerAttention = role === 'manager' && !managerOpen ? true : s.managerAttention;
+      return { chat: [...s.chat, { role, text }].slice(-100), managerAttention };
+    }),
 
   agentById: (id) => (id ? get().agents.find((a) => a.id === id) : undefined),
 }));

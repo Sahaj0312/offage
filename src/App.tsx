@@ -74,6 +74,7 @@ export default function App() {
 
   const selectedId = useStore((s) => s.selectedAgentId);
   const whiteboardOpen = useStore((s) => s.whiteboardOpen);
+  const managerAttention = useStore((s) => s.managerAttention);
   const showStart = !locked && !selectedId && !whiteboardOpen;
 
   const relock = () => controlsRef.current?.lock();
@@ -98,6 +99,9 @@ export default function App() {
       <div className="hud">
         {locked && <Crosshair />}
         {locked && <ControlsHint />}
+        {locked && managerAttention && (
+          <div className="mgr-alert">🙋 Manager has an update — head of the room</div>
+        )}
 
         {selectedId && <InfoPanel onClose={relock} />}
         {whiteboardOpen && <Whiteboard onClose={relock} />}

@@ -17,12 +17,40 @@ function tintFor(id: string) {
   return TINTS[h % TINTS.length];
 }
 
+/** A pulsing amber beacon + light above the head when the Manager needs you. */
+function AttentionBeacon() {
+  const bulb = useRef<THREE.Mesh>(null);
+  const light = useRef<THREE.PointLight>(null);
+  const t = useRef(0);
+  useFrame((_, delta) => {
+    t.current += delta;
+    const f = (Math.sin(t.current * 6) + 1) / 2; // fast 0..1 flash
+    if (bulb.current) {
+      (bulb.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.4 + f * 2.6;
+      bulb.current.scale.setScalar(0.85 + f * 0.5);
+    }
+    if (light.current) light.current.intensity = f * 5;
+  });
+  return (
+    <group position={[0, 2.8, 0.1]}>
+      <mesh ref={bulb}>
+        <sphereGeometry args={[0.13, 16, 16]} />
+        <meshStandardMaterial color="#ffe08a" emissive={0xffb300} emissiveIntensity={1} toneMapped={false} />
+      </mesh>
+      <pointLight ref={light} color={0xffb300} distance={7} intensity={3} />
+    </group>
+  );
+}
+
 /** A full workstation: desk + chair + seated character + monitor + status. */
 export function Agent({ data, slot }: { data: AgentData; slot: DeskSlot }) {
   const v = statusVisual(data.status);
   const tint = tintFor(data.id);
   const focused = useStore((s) => s.focusedAgentId === data.id);
+  // The Manager raises a hand + flashes a beacon when it has something for you.
+  const attention = useStore((s) => s.managerAttention) && data.kind === 'manager';
   const torso = useRef<THREE.Group>(null);
+  const raisedArm = useRef<THREE.Group>(null);
   const t = useRef(0);
   const active = data.status === 'working' || data.status === 'thinking';
 
@@ -32,6 +60,10 @@ export function Agent({ data, slot }: { data: AgentData; slot: DeskSlot }) {
       // subtle typing/lean animation while active
       const amt = active ? 1 : 0.15;
       torso.current.rotation.x = Math.sin(t.current * (active ? 6 : 1.5)) * 0.04 * amt;
+    }
+    if (raisedArm.current) {
+      // wave the raised hand back and forth
+      raisedArm.current.rotation.z = -0.1 + Math.sin(t.current * 8) * 0.3;
     }
   });
 
@@ -84,16 +116,34 @@ export function Agent({ data, slot }: { data: AgentData; slot: DeskSlot }) {
           <sphereGeometry args={[0.2, 16, 16]} />
           <meshStandardMaterial color="#e8c9a8" />
         </mesh>
-        {/* arms reaching to desk */}
-        {[-0.28, 0.28].map((x) => (
-          <mesh key={x} position={[x, 1.0, -0.32]} rotation={[-0.8, 0, 0]} castShadow>
+        {/* left arm always rests on the desk */}
+        <mesh position={[-0.28, 1.0, -0.32]} rotation={[-0.8, 0, 0]} castShadow>
+          <capsuleGeometry args={[0.08, 0.45, 4, 8]} />
+          <meshStandardMaterial color={tint} />
+        </mesh>
+        {/* right arm: rests on the desk, or raised + waving when asking for attention */}
+        {attention ? (
+          <group ref={raisedArm} position={[0.3, 1.2, -0.02]}>
+            <mesh position={[0, 0.3, 0]} castShadow>
+              <capsuleGeometry args={[0.08, 0.5, 4, 8]} />
+              <meshStandardMaterial color={tint} />
+            </mesh>
+            {/* hand */}
+            <mesh position={[0, 0.6, 0]} castShadow>
+              <sphereGeometry args={[0.1, 12, 12]} />
+              <meshStandardMaterial color="#e8c9a8" />
+            </mesh>
+          </group>
+        ) : (
+          <mesh position={[0.28, 1.0, -0.32]} rotation={[-0.8, 0, 0]} castShadow>
             <capsuleGeometry args={[0.08, 0.45, 4, 8]} />
             <meshStandardMaterial color={tint} />
           </mesh>
-        ))}
+        )}
       </group>
 
       <Monitor agent={data} />
+      {attention && <AttentionBeacon />}
       <StatusBubble status={data.status} />
 
       {/* Name label */}
