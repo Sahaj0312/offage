@@ -70,18 +70,23 @@ plan); add `--write` so they can actually create/edit files.
 > **Tip:** to actually build a project, run in a fresh directory with `--write`:
 > `cd ~/projects/new-site && offage --write`
 
-### The Manager (lead agent)
+### The Manager (lead agent) + the Command Console
 
 You don't just fire off a team and watch — there's a **Manager**, the lead agent you converse
 with (like the main agent in Claude Code). After the team finishes a round, the Manager
 **synthesizes** what they did and reports back; your follow-ups go *through* the Manager, which
 **delegates** new tasks to the team. It runs as a `manager`-kind agent at the head-of-room desk.
 
-- **In the terminal:** after the office opens, you get a `you ›` prompt. Type a follow-up
-  ("make the earth bigger and add clouds") → the Manager assigns it to the team, waits, and
-  summarizes. `/quit` to exit.
-- **In the office:** walk up to the **Manager's desk** and press `E` to chat in a panel — same
-  conversation, same delegation.
+The primary way to talk to it is the **Command Console** — a macOS-Spotlight-style chat:
+
+- **⌘K / Ctrl+K from anywhere** opens it (and it auto-opens on the Manager's first message). Type
+  to drive the whole build — markdown/code rendering, a "Manager is working…" indicator, the lot.
+  **Esc** closes and you're back to walking. You never need the terminal.
+- Walking up to the **Manager's desk** and pressing **E** opens the same console.
+- You *can* also walk up to a worker and press **E** to "talk" to them — but they'll just give you
+  an increasingly annoyed brush-off and tell you to take it to the Manager. (All real work goes
+  through the Manager.)
+- The terminal still shows the same conversation + live feed if you want to watch it there.
 - **Autonomous mode (`--auto`):** instead of one round per message, the Manager keeps delegating
   follow-up rounds on its own until it judges the goal met (capped by `--max-rounds`), then reports
   back and waits for you. Hands-off.

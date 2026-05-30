@@ -8,7 +8,8 @@ import { DeskCluster } from './scene/DeskCluster';
 import { Player } from './scene/Player';
 import { Crosshair } from './hud/Crosshair';
 import { ControlsHint } from './hud/ControlsHint';
-import { InfoPanel } from './hud/InfoPanel';
+import { CommandConsole } from './hud/CommandConsole';
+import { WorkerChat } from './hud/WorkerChat';
 import { Whiteboard } from './hud/Whiteboard';
 import { useStore } from './store/useStore';
 import { createAgentSource } from './agents/createAgentSource';
@@ -19,8 +20,6 @@ export default function App() {
 
   const setSource = useStore((s) => s.setSource);
   const setAgents = useStore((s) => s.setAgents);
-  const select = useStore((s) => s.select);
-  const toggleWhiteboard = useStore((s) => s.toggleWhiteboard);
 
   // --- wire the mock agent source into the store (swap for LiveAgentSource later) ---
   useEffect(() => {
@@ -36,47 +35,72 @@ export default function App() {
     };
   }, [setSource, setAgents]);
 
-  // --- pointer lock = walking mode; unlocking always returns to a UI/overlay ---
+  // --- pointer lock = walking mode; entering it closes any open panel/overlay ---
   useEffect(() => {
     const onChange = () => {
       const isLocked = !!document.pointerLockElement;
       setLocked(isLocked);
       if (isLocked) {
-        // entering walk mode closes any open panel/overlay
-        useStore.getState().select(null);
-        if (useStore.getState().whiteboardOpen) useStore.getState().toggleWhiteboard();
+        const st = useStore.getState();
+        st.select(null);
+        st.closeConsole();
+        if (st.whiteboardOpen) st.toggleWhiteboard();
       }
     };
     document.addEventListener('pointerlockchange', onChange);
     return () => document.removeEventListener('pointerlockchange', onChange);
   }, []);
 
-  // --- key actions: E inspect focused agent, M orchestration board ---
+  const consoleOpen = useStore((s) => s.consoleOpen);
+  const selectedId = useStore((s) => s.selectedAgentId);
+  const whiteboardOpen = useStore((s) => s.whiteboardOpen);
+  const managerAttention = useStore((s) => s.managerAttention);
+  const anyPanel = consoleOpen || !!selectedId || whiteboardOpen;
+
+  // A panel being open ⇔ the pointer is unlocked (so you can type / use the mouse).
+  useEffect(() => {
+    if (anyPanel && document.pointerLockElement) controlsRef.current?.unlock();
+  }, [anyPanel]);
+
+  // --- key actions ---
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = document.activeElement?.tagName === 'INPUT';
-      if (typing) return;
       const st = useStore.getState();
+
+      // ⌘K / Ctrl+K toggles the Manager console from anywhere (even while typing).
+      if ((e.metaKey || e.ctrlKey) && (e.code === 'KeyK' || e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        if (st.consoleOpen) controlsRef.current?.lock();
+        else st.openConsole();
+        return;
+      }
+      // Esc closes whatever panel is open and returns to walking.
+      if (e.code === 'Escape') {
+        if (st.consoleOpen || st.selectedAgentId || st.whiteboardOpen) controlsRef.current?.lock();
+        return;
+      }
+
+      const el = document.activeElement as HTMLElement | null;
+      const typing = el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable;
+      if (typing) return;
+
       if (e.code === 'KeyE' && st.focusedAgentId) {
-        select(st.focusedAgentId);
-        controlsRef.current?.unlock();
+        const ag = st.agentById(st.focusedAgentId);
+        if (ag?.kind === 'manager') st.openConsole();
+        else st.select(st.focusedAgentId); // worker easter-egg chat
       } else if (e.code === 'KeyM') {
         const opening = !st.whiteboardOpen;
         st.select(null);
-        toggleWhiteboard();
-        if (opening) controlsRef.current?.unlock();
-        else controlsRef.current?.lock();
+        st.closeConsole();
+        st.toggleWhiteboard();
+        if (!opening) controlsRef.current?.lock();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [select, toggleWhiteboard]);
+  }, []);
 
-  const selectedId = useStore((s) => s.selectedAgentId);
-  const whiteboardOpen = useStore((s) => s.whiteboardOpen);
-  const managerAttention = useStore((s) => s.managerAttention);
-  const showStart = !locked && !selectedId && !whiteboardOpen;
-
+  const showStart = !locked && !anyPanel;
   const relock = () => controlsRef.current?.lock();
 
   return (
@@ -101,20 +125,23 @@ export default function App() {
         {locked && <Crosshair />}
         {locked && <ControlsHint />}
         {locked && managerAttention && (
-          <div className="mgr-alert">🙋 Manager has an update — head of the room</div>
+          <div className="mgr-alert" onClick={() => useStore.getState().openConsole()}>
+            🙋 Your Manager has an update — press <kbd>⌘K</kbd> to talk
+          </div>
         )}
 
-        {selectedId && <InfoPanel onClose={relock} />}
+        {consoleOpen && <CommandConsole onClose={relock} />}
+        {selectedId && <WorkerChat onClose={relock} />}
         {whiteboardOpen && <Whiteboard onClose={relock} />}
 
         {showStart && (
           <div id="enter-office" className="start-overlay" onClick={relock}>
             <h1>Offage</h1>
             <p>
-              A walkable 3D office where every desk is an AI agent. Watch them think, work,
-              and finish — walk up to anyone to inspect or assign a task.
+              A walkable 3D office where every desk is an AI agent. Talk to your Manager with{' '}
+              <kbd>⌘K</kbd> to drive the whole build — or walk up to anyone and see what they're up to.
             </p>
-            <div className="cta">Click to enter · WASD + mouse to move</div>
+            <div className="cta">Click to enter · WASD + mouse · ⌘K to talk</div>
           </div>
         )}
       </div>
