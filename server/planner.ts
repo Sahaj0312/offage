@@ -68,6 +68,8 @@ For each agent provide:
 - "systemPrompt": focused instructions defining this agent's responsibility and how it should behave
 - "task": the concrete first task this agent should start working on RIGHT NOW, phrased as a direct instruction to the agent
 
+You have NO tools — do not read files or run commands. Design the plan from the GOAL alone and reply in a SINGLE message.
+
 Respond with ONLY a JSON object, no prose, no code fences:
 {"summary":"one sentence describing the plan","agents":[{"name":"...","role":"...","systemPrompt":"...","task":"..."}]}`;
 

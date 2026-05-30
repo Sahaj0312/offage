@@ -31,22 +31,34 @@ export class ClaudeBrain implements Brain {
 
   async complete(system: string, prompt: string, _schema?: object): Promise<string> {
     let text = '';
-    const stream = query({
-      prompt,
-      options: {
-        systemPrompt: system,
-        allowedTools: [],
-        maxTurns: 8, // headroom for thinking + transient retries
-        ...(this.model ? { model: this.model } : {}),
-      },
-    });
-    for await (const msg of stream) {
-      if (msg.type === 'assistant') {
-        for (const b of msg.message.content) if (b.type === 'text') text += b.text;
-      } else if (msg.type === 'result' && msg.subtype === 'success' && msg.result) {
-        text = msg.result;
+    let lastAssistant = '';
+    try {
+      const stream = query({
+        prompt,
+        options: {
+          systemPrompt: system,
+          allowedTools: [],
+          // This is a pure reasoning call (no tools). Give it ample room so the
+          // harness never trips its turn limit mid-thought on a big summary.
+          maxTurns: 24,
+          ...(this.model ? { model: this.model } : {}),
+        },
+      });
+      for await (const msg of stream) {
+        if (msg.type === 'assistant') {
+          let chunk = '';
+          for (const b of msg.message.content) if (b.type === 'text') chunk += b.text;
+          if (chunk) lastAssistant = chunk;
+          text += chunk;
+        } else if (msg.type === 'result' && msg.subtype === 'success' && msg.result) {
+          text = msg.result;
+        }
       }
+    } catch {
+      // On an error result (e.g. max turns) keep whatever the model already said
+      // — its last assistant message usually contains the answer.
+      text = text || lastAssistant;
     }
-    return text;
+    return text || lastAssistant;
   }
 }

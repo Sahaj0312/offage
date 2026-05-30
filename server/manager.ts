@@ -89,6 +89,8 @@ ${roster}
 What your workers can do: ${capabilityNote(this.caps)}
 Only assign tasks that fit those constraints.
 
+You have NO tools yourself — you cannot read files, run commands, or take any action. Reason ONLY from the information given to you and reply in a SINGLE message. Do not attempt to verify or inspect anything; trust the workers' reported results.
+
 Respond with ONLY a JSON object, no prose, no code fences:
 {"reply": "<a concise, conversational message to the operator, first person>", "assignments": [{"agent": "<one of: ${names}>", "task": "<concrete instruction for that worker>"}]}
 
